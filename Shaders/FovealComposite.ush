@@ -3,23 +3,20 @@
 //
 // Входы ноды (все скаляры - VectorParameter приходит в Custom как float3, .w нет):
 //   UV (ViewportUV), SceneTex (регистрирует PostProcessInput0), SideL, SideR (Texture2D),
-//   Aspect, CenterFOV, SideYaw, SideFOV, RectYaw, RectWidth, EdgeYaw, PitchCap, VertCompress, VertBlendDeg,
-//   BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
+//   Aspect, CenterFOV, SideYaw, SideFOV, TotalFOV, PaniniD, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
 // Debug: 1/2 - левый/правый RT сырой, 3 - только центр, 4 - композит с тонировкой источников
 //        (левый бок красноватый, правый зеленоватый, центр как есть) - для поиска швов и рассинхрона.
 // Кадр камеры: x вправо, y вверх, z вперёд. Экран: u вправо, v вниз.
 //
-// Проекция (v3): центральные +-RectYaw - настоящая перспектива (равномерно отмасштабированный кроп
-// центрального кадра, ни одного искажения; 35 град / 0.70 = CS FOV 90). Дальше yaw сжимается гиперболой
-// до EdgeYaw у кромки со стыковкой по наклону (C1). Вертикаль: в центре y = tan(pitch)/cos(yaw)*sx
-// (перспектива), на периферии масштаб столбца G = Gc*(F'(yaw)/F'(RectYaw))^VertCompress - вертикаль сжата
-// как корень из горизонтального (VertCompress 0.5), с плавным входом за VertBlendDeg. Вертикали прямые везде.
-// PitchCap ограничивает, как высоко смотрит кромка (боковые камеры должны это покрывать).
-// Обратная функция (депроекция выстрела, Э8):
-//   |x| <= RectWidth : yaw = atan(x / sx),  sx = RectWidth / tan(RectYaw)
-//   иначе            : xp = (|x|-RectWidth)/A * U/(U+tau);  yaw = RectYaw + tau*xp/(1-xp)
-//   A = 1-RectWidth, U = EdgeYaw-RectYaw, k1 = sx/cos^2(RectYaw), tau = A*U/(k1*U - A)
-//   pitch = atan((y/aspect) / G(yaw)),  G = sx/cos(yaw) в центре, иначе A*tau/(u+tau)^2*(U+tau)/U*cos(RectYaw)
+// Проекция (v4, Панини): x = sN*(d+1)*sin(yaw)/(d+cos(yaw)),  y = sN*tan(pitch)*(d+1)/(d+cos(yaw)).
+// Одна гладкая функция без зон: вертикали прямые (x зависит только от yaw), вертикальный масштаб растёт
+// к краям монотонно (горба нет), горизонтали - мягкие дуги как у широкоугольного объектива.
+// sN выбирается так, что кромка экрана = TotalFOV/2. PaniniD: 1 - классический Панини, больше - ближе
+// к цилиндрической ортографике (сильнее сжимает края, вмещает больше). При 135/5 центр = 97% плотности CS 90.
+// Обратная функция (депроекция выстрела, Э8): xp = x/sN; R = sqrt((d+1)^2+xp^2); a = atan2(xp, d+1);
+//   yaw = a + asin(xp*d/R);  S = (d+1)/(d+cos(yaw));  pitch = atan((y/aspect)/(sN*S)).
+// Отвергнутые версии: v1 гипербола от оси (центр гнулся), v2 рект. центр + цилиндр (ряды гнулись),
+// v3 рект. центр + сжатая периферия (горб/гребень на границе зон - неизбежен при двух режимах).
 
 const float PI = 3.14159265f;
 const float D2R = PI / 180.0f;
@@ -38,39 +35,18 @@ if (Debug > 0.5f && Debug < 1.5f) return Texture2DSampleLevel(SideL, SideLSample
 if (Debug > 1.5f && Debug < 2.5f) return Texture2DSampleLevel(SideR, SideRSampler, UV, 0).rgb;
 if (Debug > 2.5f && Debug < 3.5f) return SceneTextureLookup(UV, 14, false).rgb;
 
-// --- экран -> (yaw, pitch) ---
+// --- экран -> (yaw, pitch), Панини ---
 float xn = UV.x * 2.0f - 1.0f;
 float yn = 1.0f - UV.y * 2.0f;
-float thetaC = RectYaw * D2R;
-float sx  = RectWidth / tan(thetaC);                  // tan(yaw) -> доля полуширины
-float U   = max(EdgeYaw * D2R - thetaC, 0.01f);        // угол, укладываемый в остаток ширины
-float A   = 1.0f - RectWidth;
-float k1  = sx / (cos(thetaC) * cos(thetaC));         // dx/dyaw на границе, на радиан
-float tau = A * U / max(k1 * U - A, 1e-3f);
-float ax = abs(xn);
-float yawAbs, G;
-if (ax <= RectWidth)
-{
-	yawAbs = atan(ax / sx);
-	G = sx / cos(yawAbs);                              // перспектива: кроп центрального кадра
-}
-else
-{
-	float xp = min((ax - RectWidth) / A * (U / (U + tau)), 0.999f);
-	float u  = tau * xp / (1.0f - xp);
-	yawAbs = thetaC + u;
-	float Fp = A * tau / ((u + tau) * (u + tau)) * ((U + tau) / U);
-	// Вертикальное сжатие - степень VertCompress от горизонтального (1 = изотропно, 0 = без сжатия;
-	// 0.5 - компромисс: у кромки предметы не тонкие и не схлопнутые). Переход от перспективного
-	// масштаба к сжатому размазан на VertBlendDeg, иначе на границе гребень (наклоны разные).
-	float Gc   = sx / cos(thetaC);
-	float Gsq  = Gc * pow(max(Fp / k1, 1e-4f), VertCompress);
-	float Gper = sx / cos(min(yawAbs, 1.4f));
-	G = lerp(Gper, Gsq, smoothstep(0.0f, VertBlendDeg * D2R, u));
-}
-G = max(G, (1.0f / aspect) / tan(PitchCap * D2R));    // кромка не смотрит выше PitchCap
-float yaw   = (xn >= 0.0f ? 1.0f : -1.0f) * yawAbs;
-float pitch = atan((yn / aspect) / G);
+float d  = max(PaniniD, 0.01f);
+float e  = clamp(TotalFOV * 0.5f, 10.0f, 89.9f) * D2R;
+float sN = (d + cos(e)) / ((d + 1.0f) * sin(e));      // кромка экрана = e
+float xp = xn / sN;
+float R  = sqrt((d + 1.0f) * (d + 1.0f) + xp * xp);
+float al = atan2(xp, d + 1.0f);
+float yaw = al + asin(clamp(xp * d / R, -1.0f, 1.0f));
+float S  = (d + 1.0f) / (d + cos(yaw));
+float pitch = atan((yn / aspect) / (sN * S));
 
 float ayawDeg = abs(yaw) / D2R;
 float blurDeg = BlurMaxDeg * smoothstep(BlurStartYaw, 90.0f, ayawDeg);

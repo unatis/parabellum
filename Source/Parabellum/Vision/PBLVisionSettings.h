@@ -29,47 +29,29 @@ public:
 	// --- Боковые рендеры ---
 
 	/**
-	 * Поворот боковых камер от направления взгляда. Вместе с SideFOV должен закрывать
-	 * yaw от ~5 до 90+ и pitch до +-35: бока начинаются с SideYaw - SideFOV/2, и всё, что
-	 * левее этого угла и выше охвата прямоугольного центра, иначе остаётся чёрным.
-	 * 77.5/90 давали чёрные углы; 60/130 закрывают всё, включая PitchCap 60 у кромки.
+	 * Поворот боковых камер от направления взгляда. Вместе с SideFOV должны покрыть yaw от BlendStart
+	 * до TotalFOV/2 и pitch до +-30 (углы экрана). 60/70 покрывают 25..95 по yaw; при большем TotalFOV расширять.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 30, ClampMax = 90))
 	float SideYaw = 60.0f;
 
 	/** FOV боковых камер (квадратный RT, поэтому горизонтальный = вертикальный). */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 40, ClampMax = 140))
-	float SideFOV = 130.0f;
+	float SideFOV = 70.0f;
 
-	/** Сторона бокового RT = min(ширина, высота экрана) * это. Периферия размывается - хватит и 0.5. */
+	/** Сторона бокового RT = min(ширина, высота экрана) * это. В Панини шов лежит в зоне почти полной плотности - нужно 1.0. */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 0.1, ClampMax = 1.0))
-	float SideResolutionScale = 0.5f;
+	float SideResolutionScale = 1.0f;
 
-	// --- Проекция: центр ректилинейный, периферия сжата гиперболой до 90 градусов у края ---
+	// --- Проекция Панини: x = (d+1)sin(yaw)/(d+cos(yaw)). Одна гладкая функция, без зон. ---
 
-	/** Полуугол ректилинейной зоны. 35 при RectWidth 0.7 = CS FOV 90 по обеим осям. */
-	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 10, ClampMax = 60))
-	float RectYaw = 35.0f;
+	/** Полный горизонтальный FOV композита. Кромка экрана = TotalFOV/2. 135 при d=5 даёт центр 97% плотности CS 90. */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 90, ClampMax = 179))
+	float TotalFOV = 135.0f;
 
-	/** Какую долю полуширины экрана занимает ректилинейная зона. Остаток - под EdgeYaw-RectYaw градусов периферии. */
-	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 0.3, ClampMax = 0.95))
-	float RectWidth = 0.70f;
-
-	/** Yaw у кромки экрана. 90 = полные 180 по горизонтали (спека); меньше - мягче сжатие периферии. */
-	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 45, ClampMax = 100))
-	float EdgeYaw = 90.0f;
-
-	/** Вертикальное сжатие периферии как степень горизонтального: 1 = изотропно (всё у кромки схлопывается), 0 = только по ширине (тонкие полоски). */
-	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 0, ClampMax = 1))
-	float VertCompress = 0.5f;
-
-	/** За сколько градусов после RectYaw вертикальный масштаб переходит от перспективы к сжатию (убирает гребень на границе). */
-	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 1, ClampMax = 40))
-	float VertBlendDeg = 10.0f;
-
-	/** Насколько высоко (по pitch) может смотреть кромка экрана. Должно покрываться боковыми камерами (SideFOV/2). */
-	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 30, ClampMax = 85))
-	float PitchCap = 60.0f;
+	/** Параметр Панини: 1 - классический (мягко, вмещает меньше), больше - ближе к цилиндрической ортографике (сильнее жмёт края). */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 0.5, ClampMax = 50))
+	float PaniniD = 5.0f;
 
 	// --- Шов центр/бока: плавный переход по |yaw| ---
 
@@ -87,11 +69,11 @@ public:
 	 * экране игрок может посмотреть на край, и заметное размытие читается как артефакт, а не как зрение.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Blur", meta = (ClampMin = 0, ClampMax = 90))
-	float BlurStartYaw = 35.0f;
+	float BlurStartYaw = 50.0f;
 
 	/** Радиус размытия на краю экрана (90 градусов), в градусах угла. Едва заметное - основной сигнал периферии само сжатие. */
 	UPROPERTY(Config, EditAnywhere, Category = "Blur", meta = (ClampMin = 0, ClampMax = 10))
-	float BlurMaxDeg = 0.8f;
+	float BlurMaxDeg = 0.3f;
 
 	/** 0 - композит; 1/2 - левый/правый RT сырой; 3 - только центр; 4 - композит с тонировкой боков (швы). */
 	UPROPERTY(Config, EditAnywhere, Category = "Debug", meta = (ClampMin = 0, ClampMax = 4))
