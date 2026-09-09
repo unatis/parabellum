@@ -147,6 +147,16 @@ void APBLCharacter::Input_Move(const FInputActionValue& Value)
 	const FRotator YawOnly(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
 	AddMovementInput(FRotationMatrix(YawOnly).GetUnitAxis(EAxis::X), Axis.Y);
 	AddMovementInput(FRotationMatrix(YawOnly).GetUnitAxis(EAxis::Y), Axis.X);
+
+	// Диагностика Э2: раз в ~секунду, пока не подтвердим ввод руками.
+	static int32 MoveLogCounter = 0;
+	if ((MoveLogCounter++ % 60) == 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("PBL: Move axis=(%.2f, %.2f) vel=%.0f mode=%d loc=%s"),
+			Axis.X, Axis.Y, GetVelocity().Size(),
+			GetCharacterMovement() ? (int32)GetCharacterMovement()->MovementMode : -1,
+			*GetActorLocation().ToCompactString());
+	}
 }
 
 void APBLCharacter::Input_Look(const FInputActionValue& Value)
@@ -159,10 +169,18 @@ void APBLCharacter::Input_Look(const FInputActionValue& Value)
 
 	AddControllerYawInput(Delta.X * DegPerCount);
 	AddControllerPitchInput(Delta.Y * DegPerCount * (S->bInvertMouseY ? -1.0f : 1.0f));
+
+	static int32 LookLogCounter = 0;
+	if ((LookLogCounter++ % 60) == 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("PBL: Look delta=(%.1f, %.1f) controlRot=%s"),
+			Delta.X, Delta.Y, Controller ? *Controller->GetControlRotation().ToCompactString() : TEXT("no controller"));
+	}
 }
 
 void APBLCharacter::Input_CrouchStart()
 {
+	UE_LOG(LogTemp, Display, TEXT("PBL: Crouch pressed"));
 	Crouch();
 }
 

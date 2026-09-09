@@ -29,6 +29,10 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 
+	/** Диагностика: сколько маппингов реально собрала Enhanced Input после первого тика. */
+	void LogRebuiltMappings();
+	FTimerHandle RebuildCheckHandle;
+
 	/**
 	 * Контекст ввода Enhanced Input. Это .uasset, поэтому агент его не пишет —
 	 * ассет создаётся Python-скриптом (Э2.1), а сюда подставляется путём из .ini.
