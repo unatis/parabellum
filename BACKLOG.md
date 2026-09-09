@@ -37,7 +37,7 @@
 
 - [x] **E3.1** `Tools/make_greybox_level.py` → `/Game/Maps/Greybox`: 33 бокса (пол, периметр, стены, укрытия, ящики, лестница+платформа, рампа), 4 PlayerStart. Запуск `Tools/make_greybox_level.bat`, без редактора
 - [~] **E3.2** Масштаб по CS-метрике: коридор 270, укрытие по грудь 110 (глаза 122 — выглянуть можно), по пояс 80, ступень 20×30, платформа 200. Не проверено ногами
-- [~] **E3.3** Sun 10 lux + SkyLight realtime + SkyAtmosphere; PostProcessVolume unbound, экспозиция Manual, bias −1. Яркость не оценена глазами — подобрать
+- [x] **E3.3** Sun 10 lux + SkyLight realtime + SkyAtmosphere, всё Movable, `force_no_precomputed_lighting`; PPV unbound, экспозиция Manual, **bias 9.5** (ручная камера f/4 1/60 ISO100 ≈ EV10 против сцены EV≈4; −1 и +6 были чёрными/тёмными). Принято глазами
 - [x] **E3.4** Уровень пересоздаётся скриптом (существующий загружается и вычищается — `delete_asset` на текущем уровне ненадёжен). `.umap` в git как производный
 
 ## Э4 — Стрельба
