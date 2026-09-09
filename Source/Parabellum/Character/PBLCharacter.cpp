@@ -182,7 +182,7 @@ void APBLCharacter::Input_Look(const FInputActionValue& Value)
 	const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>();
 	const float CVarSens = CVarPBLSens.GetValueOnGameThread();
 	const float Sens = CVarSens > 0.0f ? CVarSens : S->MouseSensitivity;
-	const float DegPerCount = S->MouseDegreesPerCount * Sens;
+	const float DegPerCount = S->MouseDegreesPerCount * S->MouseCountsScale * Sens;
 
 	AddControllerYawInput(Delta.X * DegPerCount);
 	AddControllerPitchInput(Delta.Y * DegPerCount * (S->bInvertMouseY ? -1.0f : 1.0f));

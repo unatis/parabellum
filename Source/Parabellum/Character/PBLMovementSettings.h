@@ -73,6 +73,15 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Mouse", AdvancedDisplay)
 	float MouseDegreesPerCount = 0.022f;
 
+	/**
+	 * Эмпирический множитель на сырую дельту мыши из Enhanced Input. Подобран 2026-09-09
+	 * по ощущению пользователя (его CS sens 1 == наш sens 8 при множителе 1). Откуда
+	 * берётся 1/8 - в коде не найдено (не AxisConfig: EI читает RawValue). Если найдётся
+	 * источник - убрать множитель и вернуть 1.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Mouse", AdvancedDisplay)
+	float MouseCountsScale = 8.0f;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Mouse")
 	bool bInvertMouseY = false;
 };
