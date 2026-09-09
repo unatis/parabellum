@@ -6,6 +6,11 @@ public class Parabellum : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// Модуль плоский, с подпапками по областям (Character, Player, Game, ...).
+		// Без этой строки UBT не кладёт корень модуля в include-пути и
+		// #include "Character/PBLCharacter.h" не разрешается.
+		PublicIncludePaths.Add(ModuleDirectory);
+
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
