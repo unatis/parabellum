@@ -3,14 +3,19 @@
 //
 // Входы ноды (все скаляры - VectorParameter приходит в Custom как float3, .w нет):
 //   UV (ViewportUV), SceneTex (регистрирует PostProcessInput0), SideL, SideR (Texture2D),
-//   Aspect, CenterFOV, SideYaw, SideFOV, CompressB, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
+//   Aspect, CenterFOV, SideYaw, SideFOV, RectYaw, RectWidth, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
 // Debug: 1/2 - левый/правый RT сырой, 3 - только центр, 4 - композит с тонировкой источников
 //        (левый бок красноватый, правый зеленоватый, центр как есть) - для поиска швов и рассинхрона.
 // Кадр камеры: x вправо, y вверх, z вперёд. Экран: u вправо, v вниз.
 //
-// Проекция цилиндрическая: по горизонтали x = f(yaw) = yaw/(yaw+b), нормировано так, что край экрана = 90 град;
-// по вертикали ректилинейно, один в один с центральной камерой (вертикали остаются прямыми).
-// Обратная функция yaw = b*r/(1-r) - она же нужна для депроекции выстрела (Э8).
+// Проекция (v2): центральные +-RectYaw ректилинейны без искажений и занимают RectWidth полуширины
+// (35 град / 0.70 = ровно CS FOV 90 по обеим осям), дальше yaw сжимается гиперболой до 90 град у края,
+// со стыковкой по наклону (C1). Вертикаль ректилинейна тем же масштабом - в центре пиксели квадратные,
+// вертикали прямые везде. Обратная функция (для депроекции выстрела, Э8):
+//   |x| <= RectWidth : yaw = atan(x / sx),  sx = RectWidth / tan(RectYaw)
+//   иначе            : xp = (|x|-RectWidth)/A * U/(U+tau);  yaw = RectYaw + tau*xp/(1-xp)
+//   где A = 1-RectWidth, U = 90-RectYaw, k1 = sx/cos^2(RectYaw), tau = A*U/(k1*U - A)
+//   pitch = atan((y/aspect)/sx)
 
 const float PI = 3.14159265f;
 const float D2R = PI / 180.0f;
@@ -20,7 +25,6 @@ float aspect = max(Aspect, 0.1f);
 float centerFov = CenterFOV * D2R;
 float sideYaw   = SideYaw * D2R;
 float sideFov   = SideFOV * D2R;
-float b         = CompressB;
 float tanHc = tan(centerFov * 0.5f);
 float tanVc = tanHc / aspect;
 float tanS  = tan(sideFov * 0.5f);
@@ -33,14 +37,25 @@ if (Debug > 2.5f && Debug < 3.5f) return SceneTextureLookup(UV, 14, false).rgb;
 // --- экран -> (yaw, pitch) ---
 float xn = UV.x * 2.0f - 1.0f;
 float yn = 1.0f - UV.y * 2.0f;
-float k  = 90.0f / (90.0f + b);
-float rp = min(abs(xn) * k, 0.999f);
-float yaw   = sign(xn) * (b * rp / (1.0f - rp)) * D2R;
-// Вертикаль: ректилинейно как центр, но верх экрана чуть ниже края центрального кадра -
-// прямоугольный кадр покрывает по вертикали меньше вне оси (tan(p) <= tanVc*cos(yaw)),
-// а бока начинаются с gapYaw = SideYaw - SideFOV/2. Иначе у верха/низа остаётся ничья полоса.
-float gapYaw = max(sideYaw - sideFov * 0.5f, 0.0f);
-float pitch = atan(yn * tanVc * cos(gapYaw));
+float thetaC = RectYaw * D2R;
+float sx  = RectWidth / tan(thetaC);                  // tan(yaw) -> доля полуширины
+float U   = PI * 0.5f - thetaC;                        // угол, укладываемый в остаток ширины
+float A   = 1.0f - RectWidth;
+float k1  = sx / (cos(thetaC) * cos(thetaC));         // dx/dyaw на границе, на радиан
+float tau = A * U / max(k1 * U - A, 1e-3f);
+float ax = abs(xn);
+float yawAbs;
+if (ax <= RectWidth)
+{
+	yawAbs = atan(ax / sx);
+}
+else
+{
+	float xp = min((ax - RectWidth) / A * (U / (U + tau)), 0.999f);
+	yawAbs = thetaC + tau * xp / (1.0f - xp);
+}
+float yaw   = (xn >= 0.0f ? 1.0f : -1.0f) * yawAbs;
+float pitch = atan((yn / aspect) / sx);
 
 float ayawDeg = abs(yaw) / D2R;
 float blurDeg = BlurMaxDeg * smoothstep(BlurStartYaw, 90.0f, ayawDeg);

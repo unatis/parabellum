@@ -168,7 +168,8 @@ void UPBLVisionComponent::PushParameters()
 	CompositeMID->SetScalarParameterValue(TEXT("CenterFOV"), Camera->FieldOfView);
 	CompositeMID->SetScalarParameterValue(TEXT("SideYaw"), S->SideYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("SideFOV"), S->SideFOV);
-	CompositeMID->SetScalarParameterValue(TEXT("CompressB"), S->CompressB);
+	CompositeMID->SetScalarParameterValue(TEXT("RectYaw"), S->RectYaw);
+	CompositeMID->SetScalarParameterValue(TEXT("RectWidth"), S->RectWidth);
 	CompositeMID->SetScalarParameterValue(TEXT("BlendStart"), S->BlendStartYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("BlendEnd"), S->BlendEndYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("BlurStartYaw"), S->BlurStartYaw);
