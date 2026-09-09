@@ -10,19 +10,19 @@
 
 ## Э0 — Окружение
 
-- [~] **E0.1** Visual Studio 2022, workload *Game development with C++* + компонент *Unreal Engine installer*
-- [~] **E0.2** Epic Games Launcher → Unreal Engine 5.8.2
-- [ ] **E0.3** Включить плагины: *Python Editor Script Plugin*, *Editor Scripting Utilities*
-- [ ] **E0.4** Проверить, что корпоративная сеть не режет загрузку движка/Fab
-- [ ] **E0.5** `git init` + `.gitignore` для UE (Binaries, Intermediate, Saved, DerivedDataCache)
+- [x] **E0.1** Visual Studio **2026 (18.10)**, воркоады *Desktop development with C++* + *Game development with C++* + *.NET desktop development*; компоненты *Visual Studio Tools for Unreal Engine*, *HLSL Tools*, **MSVC v143 v14.44-17.14** (обязателен, см. риски)
+- [x] **E0.2** Epic Games Launcher → Unreal Engine 5.8.2
+- [x] **E0.3** Включить плагины: *Python Editor Script Plugin*, *Editor Scripting Utilities*
+- [x] **E0.4** Проверить, что корпоративная сеть не режет загрузку движка/Fab
+- [x] **E0.5** `git init` + `.gitignore` для UE (Binaries, Intermediate, Saved, DerivedDataCache)
 
 ## Э1 — Скелет проекта
 
-- [ ] **E1.1** Создать C++ проект `Parabellum`, Blank, **без** Starter Content, без Raytracing
-- [ ] **E1.2** Структура модуля: `Source/Parabellum/{Character,Weapons,Player,Vision,Level}`
+- [x] **E1.1** Создать C++ проект `Parabellum`, Blank, **без** Starter Content, без Raytracing
+- [~] **E1.2** Структура модуля: `Source/Parabellum/{Character,Weapons,Player,Vision,Level}`
 - [ ] **E1.3** `APBLGameMode`, `APBLPlayerController`, `APBLCharacter` — пустые, но с правильным разделением ответственности (сетевая архитектура с первого дня)
 - [ ] **E1.4** Прописать классы по умолчанию в `DefaultEngine.ini` (текст, не Blueprint) — чтобы игра стартовала без единого .uasset
-- [ ] **E1.5** Убедиться, что проект собирается из командной строки (`Build.bat`) — это наш цикл проверки
+- [x] **E1.5** Убедиться, что проект собирается из командной строки (`Build.bat`) — это наш цикл проверки
 
 ## Э2 — Движение (референс: CS)
 
@@ -104,6 +104,8 @@
 ## Риски и заметки
 
 - **.uasset/Blueprint агент не редактирует** — бинарь. Всё, что можно, живёт в C++ и .ini; ассеты, которых не избежать (Input Actions, Render Targets, материалы) — создаются Python-скриптами и лежат в git как генерируемые.
+- **Тулчейн**: UE 5.8.2 **не берёт компилятор VS 2026 (v14.51)**, откатывается на **MSVC v143 / v14.44**. Компонент «MSVC v143 - VS 2022 C++ x64/x86 build tools (v14.44-17.14)» обязателен, без него сборки нет.
+- **Сборка из CLI работает** (`Build.bat ParabellumEditor Win64 Development`, ~87 c, exit 0) — агент компилирует и читает ошибки сам.
 - **Цикл проверки**: агент не видит вьюпорт. Нужно решить, как смотрим результат — билд из командной строки + запуск с `-ExecCmds` и скриншотом, или пользователь смотрит и описывает. Это надо наладить на Э1, иначе Э7 (подбор на глаз) встанет.
 - **Материал композита** — это .uasset. Скорее всего придётся собирать его Python-скриптом с Custom-нодой, куда подставляется HLSL из .usf файла. HLSL тогда живёт текстом в репозитории и правится нормально.
 - **Мышечная память CS не переносится** на периферию — принято как дизайн-решение, не как баг.
