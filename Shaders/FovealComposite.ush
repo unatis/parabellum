@@ -63,7 +63,8 @@ for (int i = 0; i < 9; i++)
 
 	// центр (ректилинейно в центральную камеру)
 	float2 c = float2(d.x, d.y) / max(d.z, 1e-4f) / float2(tanHc, tanVc);
-	float inC = (d.z > 0.0f && all(abs(c) <= 1.0f)) ? 1.0f : 0.0f;
+	// Мягкий край кадра: вес затухает на последних ~8% поля, чтобы граница центр/бок не была ступенькой.
+	float inC = (d.z > 0.0f) ? smoothstep(1.0f, 0.92f, max(abs(c.x), abs(c.y))) : 0.0f;
 	float2 uvc = saturate(float2(0.5f + 0.5f * c.x, 0.5f - 0.5f * c.y));
 	float3 colC = SceneTextureLookup(uvc, 14, false).rgb;
 
@@ -72,7 +73,7 @@ for (int i = 0; i < 9; i++)
 	float cy = cos(sideYaw), sy = sin(sideYaw);
 	float3 ds = float3(d.x * cy - sgn * d.z * sy, d.y, sgn * d.x * sy + d.z * cy);
 	float2 s = float2(ds.x, ds.y) / max(ds.z, 1e-4f) / tanS;
-	float inS = (ds.z > 0.0f && all(abs(s) <= 1.0f)) ? 1.0f : 0.0f;
+	float inS = (ds.z > 0.0f) ? smoothstep(1.0f, 0.92f, max(abs(s.x), abs(s.y))) : 0.0f;
 	float2 uvs = saturate(float2(0.5f + 0.5f * s.x, 0.5f - 0.5f * s.y));
 	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, 0).rgb
 	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, 0).rgb;
@@ -81,10 +82,11 @@ for (int i = 0; i < 9; i++)
 		colS *= (sgn > 0.0f) ? float3(0.5f, 1.0f, 0.5f) : float3(1.0f, 0.5f, 0.5f);
 	}
 
-	float wC = inC * (1.0f - wSide);
-	float wS = inS * wSide;
+	// Веса по зоне смешивания, но если один источник направление не покрывает -
+	// второй берётся целиком вне зависимости от зоны (верх/низ вне центра, края).
+	float wC = inC * max(1.0f - wSide, 1.0f - inS);
+	float wS = inS * max(wSide, 1.0f - inC);
 	float have = wC + wS;
-	// если один источник отсутствует - берём другой целиком, чтобы не темнить шов
 	float3 col = (have > 0.0f) ? (colC * wC + colS * wS) / have : float3(0, 0, 0);
 	float ok = (have > 0.0f) ? 1.0f : 0.0f;
 
