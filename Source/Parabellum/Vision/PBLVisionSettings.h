@@ -28,13 +28,18 @@ public:
 
 	// --- Боковые рендеры ---
 
-	/** Поворот боковых камер от направления взгляда. */
+	/**
+	 * Поворот боковых камер от направления взгляда. Вместе с SideFOV должен закрывать
+	 * yaw от ~5 до 90+ и pitch до +-35: бока начинаются с SideYaw - SideFOV/2, и всё, что
+	 * левее этого угла и выше охвата прямоугольного центра, иначе остаётся чёрным.
+	 * 77.5/90 давали чёрные углы; 60/110 закрывают всё.
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 30, ClampMax = 90))
-	float SideYaw = 77.5f;
+	float SideYaw = 60.0f;
 
 	/** FOV боковых камер (квадратный RT, поэтому горизонтальный = вертикальный). */
-	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 40, ClampMax = 120))
-	float SideFOV = 90.0f;
+	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 40, ClampMax = 140))
+	float SideFOV = 110.0f;
 
 	/** Сторона бокового RT = min(ширина, высота экрана) * это. Периферия размывается - хватит и 0.5. */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 0.1, ClampMax = 1.0))
@@ -65,7 +70,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Blur", meta = (ClampMin = 0, ClampMax = 10))
 	float BlurMaxDeg = 1.5f;
 
-	/** 0 - композит; 1 - левый RT сырой; 2 - правый RT сырой; 3 - только центр без сжатия (как без системы). */
-	UPROPERTY(Config, EditAnywhere, Category = "Debug", meta = (ClampMin = 0, ClampMax = 3))
+	/** 0 - композит; 1/2 - левый/правый RT сырой; 3 - только центр; 4 - композит с тонировкой боков (швы). */
+	UPROPERTY(Config, EditAnywhere, Category = "Debug", meta = (ClampMin = 0, ClampMax = 4))
 	int32 DebugView = 0;
 };

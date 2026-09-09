@@ -19,4 +19,7 @@ class PARABELLUM_API APBLGameMode : public AGameModeBase
 
 public:
 	APBLGameMode();
+
+	/** -PBLPlayerStart=<PlayerStartTag> выбирает точку спавна детерминированно (для скриншотов и A/B). */
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 };

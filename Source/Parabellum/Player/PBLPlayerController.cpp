@@ -101,7 +101,7 @@ void APBLPlayerController::SetupAutoScreenshot()
 	FString Name = TEXT("pbl_auto");
 	FParse::Value(FCommandLine::Get(), TEXT("PBLScreenshotName="), Name);
 
-	// Опционально повернуть взгляд перед снимком: -PBLLookYaw=<град> -PBLLookPitch=<град>
+	// Опционально задать взгляд перед снимком (абсолютно, в мире): -PBLLookYaw=<град> -PBLLookPitch=<град>
 	float Yaw = 0.0f, Pitch = 0.0f;
 	const bool bHasYaw = FParse::Value(FCommandLine::Get(), TEXT("PBLLookYaw="), Yaw);
 	const bool bHasPitch = FParse::Value(FCommandLine::Get(), TEXT("PBLLookPitch="), Pitch);
@@ -112,7 +112,7 @@ void APBLPlayerController::SetupAutoScreenshot()
 		if (bHasYaw || bHasPitch)
 		{
 			FRotator R = GetControlRotation();
-			if (bHasYaw) { R.Yaw += Yaw; }
+			if (bHasYaw) { R.Yaw = Yaw; }
 			if (bHasPitch) { R.Pitch = Pitch; }
 			SetControlRotation(R);
 		}

@@ -4,6 +4,8 @@
 // Входы ноды (все скаляры - VectorParameter приходит в Custom как float3, .w нет):
 //   UV (ViewportUV), SceneTex (регистрирует PostProcessInput0), SideL, SideR (Texture2D),
 //   Aspect, CenterFOV, SideYaw, SideFOV, CompressB, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
+// Debug: 1/2 - левый/правый RT сырой, 3 - только центр, 4 - композит с тонировкой источников
+//        (левый бок красноватый, правый зеленоватый, центр как есть) - для поиска швов и рассинхрона.
 // Кадр камеры: x вправо, y вверх, z вперёд. Экран: u вправо, v вниз.
 //
 // Проекция цилиндрическая: по горизонтали x = f(yaw) = yaw/(yaw+b), нормировано так, что край экрана = 90 град;
@@ -26,7 +28,7 @@ float tanS  = tan(sideFov * 0.5f);
 // --- отладочные виды ---
 if (Debug > 0.5f && Debug < 1.5f) return Texture2DSampleLevel(SideL, SideLSampler, UV, 0).rgb;
 if (Debug > 1.5f && Debug < 2.5f) return Texture2DSampleLevel(SideR, SideRSampler, UV, 0).rgb;
-if (Debug > 2.5f)                 return SceneTextureLookup(UV, 14, false).rgb;
+if (Debug > 2.5f && Debug < 3.5f) return SceneTextureLookup(UV, 14, false).rgb;
 
 // --- экран -> (yaw, pitch) ---
 float xn = UV.x * 2.0f - 1.0f;
@@ -34,7 +36,11 @@ float yn = 1.0f - UV.y * 2.0f;
 float k  = 90.0f / (90.0f + b);
 float rp = min(abs(xn) * k, 0.999f);
 float yaw   = sign(xn) * (b * rp / (1.0f - rp)) * D2R;
-float pitch = atan(yn * tanVc);
+// Вертикаль: ректилинейно как центр, но верх экрана чуть ниже края центрального кадра -
+// прямоугольный кадр покрывает по вертикали меньше вне оси (tan(p) <= tanVc*cos(yaw)),
+// а бока начинаются с gapYaw = SideYaw - SideFOV/2. Иначе у верха/низа остаётся ничья полоса.
+float gapYaw = max(sideYaw - sideFov * 0.5f, 0.0f);
+float pitch = atan(yn * tanVc * cos(gapYaw));
 
 float ayawDeg = abs(yaw) / D2R;
 float blurDeg = BlurMaxDeg * smoothstep(BlurStartYaw, 90.0f, ayawDeg);
@@ -70,6 +76,10 @@ for (int i = 0; i < 9; i++)
 	float2 uvs = saturate(float2(0.5f + 0.5f * s.x, 0.5f - 0.5f * s.y));
 	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, 0).rgb
 	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, 0).rgb;
+	if (Debug > 3.5f)
+	{
+		colS *= (sgn > 0.0f) ? float3(0.5f, 1.0f, 0.5f) : float3(1.0f, 0.5f, 0.5f);
+	}
 
 	float wC = inC * (1.0f - wSide);
 	float wS = inS * wSide;

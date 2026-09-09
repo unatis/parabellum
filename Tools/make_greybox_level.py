@@ -118,7 +118,9 @@ def main():
     log(f"geometry: {len(LAYOUT)} boxes")
 
     for i, (x, y, z, yaw) in enumerate(PLAYER_STARTS):
-        spawn(unreal.PlayerStart, (x, y, z), (0, yaw, 0), f"PlayerStart_{i}", "Spawns")
+        ps = spawn(unreal.PlayerStart, (x, y, z), (0, yaw, 0), f"PlayerStart_{i}", "Spawns")
+        # Тег нужен, чтобы -PBLPlayerStart=PS<i> давал воспроизводимую точку для скриншотов.
+        ps.set_editor_property("player_start_tag", unreal.Name(f"PS{i}"))
     log(f"player starts: {len(PLAYER_STARTS)}")
 
     # Свет полностью динамический (Lumen): без Movable он ждёт запечённых лайтмап,
