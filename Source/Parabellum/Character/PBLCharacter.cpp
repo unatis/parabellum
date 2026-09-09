@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
+#include "Vision/PBLVisionComponent.h"
 #include "HAL/IConsoleManager.h"
 
 // Живой подбор чувствительности из консоли (~): pbl.Sens 1.5 ; 0 = брать из настроек.
@@ -18,6 +19,8 @@ APBLCharacter::APBLCharacter()
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
 	FirstPersonCamera->bUsePawnControlRotation = true;
+
+	Vision = CreateDefaultSubobject<UPBLVisionComponent>(TEXT("Vision"));
 
 	// Тело поворачивается за взглядом только по йау: в шутере корпус смотрит
 	// туда же, куда прицел, а наклон головы тело не трогает.

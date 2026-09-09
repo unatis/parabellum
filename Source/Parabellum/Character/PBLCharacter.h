@@ -5,6 +5,7 @@
 #include "PBLCharacter.generated.h"
 
 class UCameraComponent;
+class UPBLVisionComponent;
 class UInputAction;
 struct FInputActionValue;
 
@@ -63,6 +64,10 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Parabellum|Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
+
+	/** Фовеальное зрение (Э6-Э7). Клиентская часть, работает только у локального игрока. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Parabellum|Camera")
+	TObjectPtr<UPBLVisionComponent> Vision;
 
 	/**
 	 * FOV центрального рендера. По спеке зрения - 100-110 градусов.
