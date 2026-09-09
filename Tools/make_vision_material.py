@@ -2,13 +2,16 @@
 Собирает Post Process Material /Game/Vision/M_FovealComposite из Shaders/FovealComposite.ush.
 
 Запуск: Tools/make_vision_material.bat (без редактора). Идемпотентен: материал пересобирается.
-Править HLSL - в .ush, не в материале. Параметры P0/P1/Debug задаёт UPBLVisionComponent.
+Править HLSL - в .ush, не в материале. Скалярные параметры (см. SCALARS) задаёт UPBLVisionComponent.
 """
 import os
 import unreal
 
 MAT_PATH = "/Game/Vision"
 MAT_NAME = "M_FovealComposite"
+# Скалярные параметры Custom-ноды (имя, дефолт). VectorParameter в Custom приходит как float3 - не годится.
+SCALARS = (("Aspect", 16.0 / 9.0), ("CenterFOV", 103.0), ("SideYaw", 77.5), ("SideFOV", 90.0), ("CompressB", 33.2),
+           ("BlendStart", 35.0), ("BlendEnd", 50.0), ("BlurStartYaw", 25.0), ("BlurMaxDeg", 1.5), ("Debug", 0.0))
 HLSL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Shaders", "FovealComposite.ush")
 
 mel = unreal.MaterialEditingLibrary
@@ -41,7 +44,7 @@ def main():
     custom.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
     custom.set_editor_property("description", "FovealComposite (from Shaders/FovealComposite.ush)")
     inputs = []
-    for name in ("UV", "SceneTex", "SideL", "SideR", "P0", "P1", "Debug"):
+    for name in ("UV", "SceneTex", "SideL", "SideR") + tuple(n for n, _ in SCALARS):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", name)
         inputs.append(ci)
@@ -56,12 +59,6 @@ def main():
         t.set_editor_property("parameter_name", name)
         return t
 
-    def vec_param(name, y, default):
-        v = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -900, y)
-        v.set_editor_property("parameter_name", name)
-        v.set_editor_property("default_value", unreal.LinearColor(*default))
-        return v
-
     def scalar_param(name, y, default):
         sp = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -900, y)
         sp.set_editor_property("parameter_name", name)
@@ -70,12 +67,9 @@ def main():
 
     side_l = tex_param("SideL", 0)
     side_r = tex_param("SideR", 150)
-    p0 = vec_param("P0", 300, (103.0, 77.5, 90.0, 33.2))
-    p1 = vec_param("P1", 450, (35.0, 50.0, 25.0, 1.5))
-    dbg = scalar_param("Debug", 600, 0.0)
-
-    links = ((uv, "", "UV"), (scene, "Color", "SceneTex"), (side_l, "", "SideL"), (side_r, "", "SideR"),
-             (p0, "", "P0"), (p1, "", "P1"), (dbg, "", "Debug"))
+    links = [(uv, "", "UV"), (scene, "Color", "SceneTex"), (side_l, "", "SideL"), (side_r, "", "SideR")]
+    for i, (name, default) in enumerate(SCALARS):
+        links.append((scalar_param(name, 300 + 120 * i, default), "", name))
     for src, out, pin in links:
         if not mel.connect_material_expressions(src, out, custom, pin):
             raise RuntimeError(f"connect {pin} failed")

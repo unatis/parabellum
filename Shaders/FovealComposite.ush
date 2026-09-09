@@ -1,8 +1,9 @@
 // Parabellum - фовеальный композит. Тело Custom-ноды Post Process Material,
 // вставляется скриптом Tools/make_vision_material.py. Работает в SceneColorBeforeBloom.
 //
-// Входы ноды: UV (ViewportUV), SceneTex (регистрирует PostProcessInput0), SideL, SideR (Texture2D),
-//   P0 = (CenterFOV, SideYaw, SideFOV, CompressB), P1 = (BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg), Debug.
+// Входы ноды (все скаляры - VectorParameter приходит в Custom как float3, .w нет):
+//   UV (ViewportUV), SceneTex (регистрирует PostProcessInput0), SideL, SideR (Texture2D),
+//   Aspect, CenterFOV, SideYaw, SideFOV, CompressB, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
 // Кадр камеры: x вправо, y вверх, z вперёд. Экран: u вправо, v вниз.
 //
 // Проекция цилиндрическая: по горизонтали x = f(yaw) = yaw/(yaw+b), нормировано так, что край экрана = 90 град;
@@ -12,13 +13,12 @@
 const float PI = 3.14159265f;
 const float D2R = PI / 180.0f;
 
-float2 viewSize = View.ViewSizeAndInvSize.xy;
-float aspect = viewSize.x / viewSize.y;
+float aspect = max(Aspect, 0.1f);
 
-float centerFov = P0.x * D2R;
-float sideYaw   = P0.y * D2R;
-float sideFov   = P0.z * D2R;
-float b         = P0.w;
+float centerFov = CenterFOV * D2R;
+float sideYaw   = SideYaw * D2R;
+float sideFov   = SideFOV * D2R;
+float b         = CompressB;
 float tanHc = tan(centerFov * 0.5f);
 float tanVc = tanHc / aspect;
 float tanS  = tan(sideFov * 0.5f);
@@ -37,7 +37,7 @@ float yaw   = sign(xn) * (b * rp / (1.0f - rp)) * D2R;
 float pitch = atan(yn * tanVc);
 
 float ayawDeg = abs(yaw) / D2R;
-float blurDeg = P1.w * smoothstep(P1.z, 90.0f, ayawDeg);
+float blurDeg = BlurMaxDeg * smoothstep(BlurStartYaw, 90.0f, ayawDeg);
 
 // --- сбор цвета: центральный тап + 8 по кольцу радиусом blurDeg (в градусах угла) ---
 float3 acc = 0.0f;
@@ -53,7 +53,7 @@ for (int i = 0; i < 9; i++)
 	float cp = cos(pt), sp = sin(pt);
 	float3 d = float3(sin(yw) * cp, sp, cos(yw) * cp);
 
-	float wSide = smoothstep(P1.x, P1.y, abs(yw) / D2R);
+	float wSide = smoothstep(BlendStart, BlendEnd, abs(yw) / D2R);
 
 	// центр (ректилинейно в центральную камеру)
 	float2 c = float2(d.x, d.y) / max(d.z, 1e-4f) / float2(tanHc, tanVc);

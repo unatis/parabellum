@@ -6,6 +6,9 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "UnrealClient.h"
 #include "InputMappingContext.h"
 
 APBLPlayerController::APBLPlayerController()
@@ -24,6 +27,8 @@ void APBLPlayerController::BeginPlay()
 
 	UE_LOG(LogTemp, Display, TEXT("PBL: PlayerController BeginPlay, LocalPlayer=%s, DefaultMappingContext='%s'"),
 		GetLocalPlayer() ? TEXT("yes") : TEXT("NO"), *DefaultMappingContext.ToString());
+
+	SetupAutoScreenshot();
 
 	if (DefaultMappingContext.IsNull())
 	{
@@ -83,4 +88,45 @@ void APBLPlayerController::SetupInputComponent()
 	Super::SetupInputComponent();
 
 	// Привязки появятся на Э2.1 (движение) и Э4 (стрельба).
+}
+
+void APBLPlayerController::SetupAutoScreenshot()
+{
+	float AfterSeconds = 0.0f;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("PBLScreenshotAfter="), AfterSeconds) || AfterSeconds <= 0.0f)
+	{
+		return;
+	}
+
+	FString Name = TEXT("pbl_auto");
+	FParse::Value(FCommandLine::Get(), TEXT("PBLScreenshotName="), Name);
+
+	// Опционально повернуть взгляд перед снимком: -PBLLookYaw=<град> -PBLLookPitch=<град>
+	float Yaw = 0.0f, Pitch = 0.0f;
+	const bool bHasYaw = FParse::Value(FCommandLine::Get(), TEXT("PBLLookYaw="), Yaw);
+	const bool bHasPitch = FParse::Value(FCommandLine::Get(), TEXT("PBLLookPitch="), Pitch);
+
+	UE_LOG(LogTemp, Display, TEXT("PBL: auto screenshot '%s' in %.1f s"), *Name, AfterSeconds);
+	GetWorldTimerManager().SetTimer(ScreenshotHandle, FTimerDelegate::CreateWeakLambda(this, [this, Name, Yaw, Pitch, bHasYaw, bHasPitch]()
+	{
+		if (bHasYaw || bHasPitch)
+		{
+			FRotator R = GetControlRotation();
+			if (bHasYaw) { R.Yaw += Yaw; }
+			if (bHasPitch) { R.Pitch = Pitch; }
+			SetControlRotation(R);
+		}
+		// Снимок делается в конце следующего кадра - даём кадру пройти с новым поворотом.
+		FTimerHandle H;
+		GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this, Name]()
+		{
+			FScreenshotRequest::RequestScreenshot(Name, false, false);
+			UE_LOG(LogTemp, Display, TEXT("PBL: screenshot requested"));
+			FTimerHandle Q;
+			GetWorldTimerManager().SetTimer(Q, FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				ConsoleCommand(TEXT("quit"));
+			}), 2.0f, false);
+		}), 0.3f, false);
+	}), AfterSeconds, false);
 }

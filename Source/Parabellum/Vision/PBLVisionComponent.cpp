@@ -157,9 +157,22 @@ void UPBLVisionComponent::PushParameters()
 	const int32 CVarDebug = CVarPBLVisionDebug.GetValueOnGameThread();
 	const int32 Debug = CVarDebug >= 0 ? CVarDebug : S->DebugView;
 
-	// Раскладка параметров совпадает с Shaders/FovealComposite.ush и make_vision_material.py.
-	CompositeMID->SetVectorParameterValue(TEXT("P0"), FLinearColor(Camera->FieldOfView, S->SideYaw, S->SideFOV, S->CompressB));
-	CompositeMID->SetVectorParameterValue(TEXT("P1"), FLinearColor(S->BlendStartYaw, S->BlendEndYaw, S->BlurStartYaw, S->BlurMaxDeg));
+	// Имена совпадают с Shaders/FovealComposite.ush и SCALARS в make_vision_material.py.
+	float Aspect = 16.0f / 9.0f;
+	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
+	{
+		const FIntPoint V = GEngine->GameViewport->Viewport->GetSizeXY();
+		if (V.X > 0 && V.Y > 0) { Aspect = (float)V.X / (float)V.Y; }
+	}
+	CompositeMID->SetScalarParameterValue(TEXT("Aspect"), Aspect);
+	CompositeMID->SetScalarParameterValue(TEXT("CenterFOV"), Camera->FieldOfView);
+	CompositeMID->SetScalarParameterValue(TEXT("SideYaw"), S->SideYaw);
+	CompositeMID->SetScalarParameterValue(TEXT("SideFOV"), S->SideFOV);
+	CompositeMID->SetScalarParameterValue(TEXT("CompressB"), S->CompressB);
+	CompositeMID->SetScalarParameterValue(TEXT("BlendStart"), S->BlendStartYaw);
+	CompositeMID->SetScalarParameterValue(TEXT("BlendEnd"), S->BlendEndYaw);
+	CompositeMID->SetScalarParameterValue(TEXT("BlurStartYaw"), S->BlurStartYaw);
+	CompositeMID->SetScalarParameterValue(TEXT("BlurMaxDeg"), S->BlurMaxDeg);
 	CompositeMID->SetScalarParameterValue(TEXT("Debug"), (float)Debug);
 }
 

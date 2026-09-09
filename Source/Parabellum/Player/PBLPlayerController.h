@@ -34,6 +34,14 @@ protected:
 	FTimerHandle RebuildCheckHandle;
 
 	/**
+	 * Автоскриншот для проверки картинки без человека: ключ -PBLScreenshotAfter=<сек>
+	 * снимает Saved/Screenshots/.../pbl_auto.png и через 2 с закрывает игру.
+	 * Запускать с -RenderOffScreen. Основной цикл проверки оптики (Э6-Э9).
+	 */
+	void SetupAutoScreenshot();
+	FTimerHandle ScreenshotHandle;
+
+	/**
 	 * Контекст ввода Enhanced Input. Это .uasset, поэтому агент его не пишет —
 	 * ассет создаётся Python-скриптом (Э2.1), а сюда подставляется путём из .ini.
 	 * Мягкая ссылка: если ассета ещё нет, игра стартует без ввода, а не падает.
