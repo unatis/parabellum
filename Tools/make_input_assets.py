@@ -76,8 +76,10 @@ def main():
 
     imc = get_or_create(CONTEXT_NAME, CONTEXT_PATH, unreal.InputMappingContext,
                         unreal.InputMappingContext_Factory())
-    # map_key() в 5.8 из Python ничего не добавляет (массив остаётся пустым),
-    # поэтому собираем FEnhancedActionKeyMapping сами и кладём массив целиком.
+    # С 5.7 UInputMappingContext.Mappings - deprecated и рантаймом не читается:
+    # GetMappings() возвращает DefaultKeyMappings.Mappings. Пишем именно туда.
+    # Модификаторы вешаем сразу, поэтому map_key() не используем - собираем
+    # FEnhancedActionKeyMapping сами и кладём массив целиком.
     new_mappings = []
     for action_name, key_name, modifier_specs in MAPPINGS:
         m = unreal.EnhancedActionKeyMapping()
@@ -85,14 +87,19 @@ def main():
         m.set_editor_property("key", make_key(key_name))
         m.set_editor_property("modifiers", [make_modifier(imc, spec) for spec in modifier_specs])
         new_mappings.append(m)
-    imc.set_editor_property("mappings", new_mappings)
+
+    data = unreal.InputMappingContextMappingData()
+    data.set_editor_property("mappings", new_mappings)
+    imc.set_editor_property("default_key_mappings", data)
+    # Старое поле чистим, чтобы в ассете не лежало два набора.
+    imc.set_editor_property("mappings", [])
 
     for ia in actions.values():
         eal.save_loaded_asset(ia)
     eal.save_loaded_asset(imc)
 
     # Контроль: перечитать и напечатать, что реально записалось.
-    for m in imc.get_editor_property("mappings"):
+    for m in imc.get_editor_property("default_key_mappings").get_editor_property("mappings"):
         mods = [type(x).__name__ for x in m.get_editor_property("modifiers")]
         unreal.log(f"[input] {m.get_editor_property('key').get_editor_property('key_name')} -> "
                    f"{m.get_editor_property('action').get_name()} {mods}")

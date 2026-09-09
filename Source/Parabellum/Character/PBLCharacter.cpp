@@ -29,6 +29,13 @@ void APBLCharacter::PostInitializeComponents()
 	ApplyMovementSettings();
 }
 
+void APBLCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	UE_LOG(LogTemp, Display, TEXT("PBL: Character %s possessed by %s at %s"),
+		*GetName(), NewController ? *NewController->GetName() : TEXT("null"), *GetActorLocation().ToCompactString());
+}
+
 void APBLCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -97,23 +104,35 @@ void APBLCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		return;
 	}
 
+	int32 Bound = 0;
 	if (UInputAction* IA = MoveAction.LoadSynchronous())
 	{
 		Input->BindAction(IA, ETriggerEvent::Triggered, this, &APBLCharacter::Input_Move);
+		++Bound;
 	}
 	if (UInputAction* IA = LookAction.LoadSynchronous())
 	{
 		Input->BindAction(IA, ETriggerEvent::Triggered, this, &APBLCharacter::Input_Look);
+		++Bound;
 	}
 	if (UInputAction* IA = JumpAction.LoadSynchronous())
 	{
 		Input->BindAction(IA, ETriggerEvent::Started, this, &ACharacter::Jump);
 		Input->BindAction(IA, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		++Bound;
 	}
 	if (UInputAction* IA = CrouchAction.LoadSynchronous())
 	{
 		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_CrouchStart);
 		Input->BindAction(IA, ETriggerEvent::Completed, this, &APBLCharacter::Input_CrouchStop);
+		++Bound;
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("PBL: input bound %d/4 actions (Move='%s' Look='%s' Jump='%s' Crouch='%s')"),
+		Bound, *MoveAction.ToString(), *LookAction.ToString(), *JumpAction.ToString(), *CrouchAction.ToString());
+	if (Bound < 4)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PBL: часть действий не загрузилась — проверь пути в DefaultGame.ini и Content/Input"));
 	}
 }
 
