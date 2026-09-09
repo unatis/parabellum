@@ -104,6 +104,8 @@
 ## Риски и заметки
 
 - **.uasset/Blueprint агент не редактирует** — бинарь. Всё, что можно, живёт в C++ и .ini; ассеты, которых не избежать (Input Actions, Render Targets, материалы) — создаются Python-скриптами и лежат в git как генерируемые.
+- **Никогда не выключать тик у PlayerController** (`PrimaryActorTick.bCanEverTick = false`). `PlayerTick → ProcessPlayerInput` — это оценка Enhanced Input и поворот камеры. Без тика картина коварная: `InputKey` (F1–F5 debug-бинды) работает, контекст добавляется, маппинги «собраны», таймеры идут — а ни одно действие не срабатывает и мышь мертва. Стоило полдня 2026-09-09. Диагностика, которая нашла: headless-инъекция `InjectInputForAction` + симуляция `InputKey(W)` через таймер.
+- **Shift+F1 освобождает курсор только в PIE**, в `-game` его нет; курсор отпускает Alt+Tab. F1–F5 движка убраны через `-DebugExecBindings` в `DefaultInput.ini` (проверить, что подействовало).
 - **Тулчейн**: UE 5.8.2 **не берёт компилятор VS 2026 (v14.51)**, откатывается на **MSVC v143 / v14.44**. Компонент «MSVC v143 - VS 2022 C++ x64/x86 build tools (v14.44-17.14)» обязателен, без него сборки нет.
 - **Сборка из CLI работает** (`Build.bat ParabellumEditor Win64 Development`, ~87 c, exit 0) — агент компилирует и читает ошибки сам.
 - **Python в UE 5.8 из Python-скрипта**: фабрики зовутся `InputAction_Factory` / `InputMappingContext_Factory`; `unreal.Key()` без аргументов + `set_editor_property('key_name', ...)`; с 5.7 `InputMappingContext.mappings` **deprecated и рантаймом не читается** — `GetMappings()` возвращает `DefaultKeyMappings.Mappings`. Писать `EnhancedActionKeyMapping` в `unreal.InputMappingContextMappingData().mappings` и класть в `default_key_mappings`. Симптом ошибки: контекст добавлен, «маппингов: 0», ввод мёртв.

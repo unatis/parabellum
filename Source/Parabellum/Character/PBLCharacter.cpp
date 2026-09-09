@@ -10,7 +10,6 @@
 
 APBLCharacter::APBLCharacter()
 {
-	PrimaryActorTick.bCanEverTick = false;
 
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());

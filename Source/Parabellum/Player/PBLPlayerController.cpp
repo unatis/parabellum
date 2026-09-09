@@ -10,7 +10,6 @@
 
 APBLPlayerController::APBLPlayerController()
 {
-	PrimaryActorTick.bCanEverTick = false;
 }
 
 void APBLPlayerController::BeginPlay()
@@ -76,6 +75,7 @@ void APBLPlayerController::LogRebuiltMappings()
 		P ? *P->GetName() : TEXT("NONE"),
 		P ? *P->GetActorLocation().ToCompactString() : TEXT("-"),
 		GetViewTarget() ? *GetViewTarget()->GetName() : TEXT("NONE"));
+
 }
 
 void APBLPlayerController::SetupInputComponent()
