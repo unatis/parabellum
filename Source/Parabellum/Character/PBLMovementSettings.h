@@ -38,6 +38,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Body", meta = (ForceUnits = cm))
 	float CrouchedEyeHeight = 88.0f;
 
+	/** Скорость сглаживания камеры при приседании/вставании (FInterpTo). ~12 = около четверти секунды. */
+	UPROPERTY(Config, EditAnywhere, Category = "Body", meta = (ClampMin = 1))
+	float CrouchCameraInterpSpeed = 12.0f;
+
 	// --- Движение. CS: бег 250 u/s, присев ~85 u/s ---
 
 	UPROPERTY(Config, EditAnywhere, Category = "Movement", meta = (ForceUnits = "cm/s"))

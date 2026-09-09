@@ -32,6 +32,7 @@ public:
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 
 	virtual void PostInitializeComponents() override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
@@ -49,8 +50,12 @@ protected:
 	/** Переносит UPBLMovementSettings в капсулу и CharacterMovementComponent. */
 	void ApplyMovementSettings();
 
-	/** Ставит камеру на высоту глаз относительно текущего размера капсулы. */
+	/** Пересчитывает целевую высоту камеры относительно текущего размера капсулы. */
 	void UpdateCameraHeight();
+
+	/** Целевая и текущая Z камеры относительно центра капсулы; текущая догоняет целевую в Tick. */
+	float CameraTargetRelZ = 0.0f;
+	float CameraCurrentRelZ = 0.0f;
 
 	/**
 	 * Камера от первого лица. Живёт на пешке, а не на контроллере: она следует

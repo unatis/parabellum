@@ -7,6 +7,10 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
+#include "HAL/IConsoleManager.h"
+
+// Живой подбор чувствительности из консоли (~): pbl.Sens 1.5 ; 0 = брать из настроек.
+static TAutoConsoleVariable<float> CVarPBLSens(TEXT("pbl.Sens"), 0.0f, TEXT("Override mouse sensitivity, 0 = use PBLMovementSettings"));
 
 APBLCharacter::APBLCharacter()
 {
@@ -44,6 +48,23 @@ void APBLCharacter::BeginPlay()
 		FirstPersonCamera->SetFieldOfView(CenterFieldOfView);
 	}
 	UpdateCameraHeight();
+	CameraCurrentRelZ = CameraTargetRelZ;
+	if (FirstPersonCamera)
+	{
+		FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, CameraCurrentRelZ));
+	}
+}
+
+void APBLCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (FirstPersonCamera && !FMath::IsNearlyEqual(CameraCurrentRelZ, CameraTargetRelZ, 0.01f))
+	{
+		const float Speed = GetDefault<UPBLMovementSettings>()->CrouchCameraInterpSpeed;
+		CameraCurrentRelZ = FMath::FInterpTo(CameraCurrentRelZ, CameraTargetRelZ, DeltaSeconds, Speed);
+		FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, CameraCurrentRelZ));
+	}
 }
 
 void APBLCharacter::ApplyMovementSettings()
@@ -70,25 +91,29 @@ void APBLCharacter::ApplyMovementSettings()
 
 void APBLCharacter::UpdateCameraHeight()
 {
-	if (!FirstPersonCamera || !GetCapsuleComponent())
+	if (!GetCapsuleComponent())
 	{
 		return;
 	}
 	const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>();
 	const float EyeFromBottom = bIsCrouched ? S->CrouchedEyeHeight : S->EyeHeight;
 	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, EyeFromBottom - HalfHeight));
+	CameraTargetRelZ = EyeFromBottom - HalfHeight;
 }
 
 void APBLCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
 	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	// Капсула сжалась и её центр упал на ScaledHalfHeightAdjust. Компенсируем,
+	// чтобы камера осталась на месте в мире, и дальше плавно едем к цели в Tick.
+	CameraCurrentRelZ += ScaledHalfHeightAdjust;
 	UpdateCameraHeight();
 }
 
 void APBLCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
 	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	CameraCurrentRelZ -= ScaledHalfHeightAdjust;
 	UpdateCameraHeight();
 }
 
@@ -147,15 +172,6 @@ void APBLCharacter::Input_Move(const FInputActionValue& Value)
 	AddMovementInput(FRotationMatrix(YawOnly).GetUnitAxis(EAxis::X), Axis.Y);
 	AddMovementInput(FRotationMatrix(YawOnly).GetUnitAxis(EAxis::Y), Axis.X);
 
-	// Диагностика Э2: раз в ~секунду, пока не подтвердим ввод руками.
-	static int32 MoveLogCounter = 0;
-	if ((MoveLogCounter++ % 60) == 0)
-	{
-		UE_LOG(LogTemp, Display, TEXT("PBL: Move axis=(%.2f, %.2f) vel=%.0f mode=%d loc=%s"),
-			Axis.X, Axis.Y, GetVelocity().Size(),
-			GetCharacterMovement() ? (int32)GetCharacterMovement()->MovementMode : -1,
-			*GetActorLocation().ToCompactString());
-	}
 }
 
 void APBLCharacter::Input_Look(const FInputActionValue& Value)
@@ -164,22 +180,17 @@ void APBLCharacter::Input_Look(const FInputActionValue& Value)
 	// поэтому AddController*Input принимает градусы один к одному.
 	const FVector2D Delta = Value.Get<FVector2D>();
 	const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>();
-	const float DegPerCount = S->MouseDegreesPerCount * S->MouseSensitivity;
+	const float CVarSens = CVarPBLSens.GetValueOnGameThread();
+	const float Sens = CVarSens > 0.0f ? CVarSens : S->MouseSensitivity;
+	const float DegPerCount = S->MouseDegreesPerCount * Sens;
 
 	AddControllerYawInput(Delta.X * DegPerCount);
 	AddControllerPitchInput(Delta.Y * DegPerCount * (S->bInvertMouseY ? -1.0f : 1.0f));
 
-	static int32 LookLogCounter = 0;
-	if ((LookLogCounter++ % 60) == 0)
-	{
-		UE_LOG(LogTemp, Display, TEXT("PBL: Look delta=(%.1f, %.1f) controlRot=%s"),
-			Delta.X, Delta.Y, Controller ? *Controller->GetControlRotation().ToCompactString() : TEXT("no controller"));
-	}
 }
 
 void APBLCharacter::Input_CrouchStart()
 {
-	UE_LOG(LogTemp, Display, TEXT("PBL: Crouch pressed"));
 	Crouch();
 }
 
