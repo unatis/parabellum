@@ -29,7 +29,7 @@
 - [x] **E2.1** Enhanced Input: Input Actions + Mapping Context. Генерирует `Tools/make_input_assets.py` через `-run=pythonscript` (без открытия редактора, ~1 c). Раскладка — в скрипте, ассеты в `Content/Input/` — производные
 - [~] **E2.2** Ходьба/бег/приседание на `CharacterMovementComponent` — привязано (WASD, Space, LCtrl), не проверено руками
 - [ ] **E2.3** Тюнинг под CS-ощущение: скорость, ускорение/торможение (в CS оно почти мгновенное), инерция, air control, отсутствие «плавания» UE по умолчанию
-- [~] **E2.4** Мышь: сырой ввод, чувствительность в тех же единицах что и CS (`0.022 * sens`), **без** сглаживания и акселерации. `bEnableLegacyInputScales=False`. Знак по Y не проверен — возможно, понадобится `bInvertMouseY`
+- [~] **E2.4** Мышь: сырой ввод, чувствительность в тех же единицах что и CS (`0.022 * sens`), **без** сглаживания и акселерации. `bEnableLegacyInputScales=False`. Знак по Y подтверждён руками (вверх = вверх)
 - [ ] **E2.5** Прыжок и его влияние на точность (в CS стрельба в прыжке наказывается)
 - [x] **E2.6** Все параметры движения — в `UPBLMovementSettings` (DeveloperSettings, правится через `DefaultGame.ini`, секция `[/Script/Parabellum.PBLMovementSettings]`)
 
