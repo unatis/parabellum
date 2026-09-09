@@ -10,7 +10,7 @@ import unreal
 MAT_PATH = "/Game/Vision"
 MAT_NAME = "M_FovealComposite"
 # Скалярные параметры Custom-ноды (имя, дефолт). VectorParameter в Custom приходит как float3 - не годится.
-SCALARS = (("Aspect", 16.0 / 9.0), ("CenterFOV", 103.0), ("SideYaw", 60.0), ("SideFOV", 110.0), ("RectYaw", 35.0), ("RectWidth", 0.70),
+SCALARS = (("Aspect", 16.0 / 9.0), ("CenterFOV", 103.0), ("SideYaw", 60.0), ("SideFOV", 130.0), ("RectYaw", 35.0), ("RectWidth", 0.70), ("EdgeYaw", 90.0), ("PitchCap", 60.0), ("VertCompress", 0.5), ("VertBlendDeg", 10.0),
            ("BlendStart", 35.0), ("BlendEnd", 50.0), ("BlurStartYaw", 35.0), ("BlurMaxDeg", 0.8), ("Debug", 0.0))
 HLSL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Shaders", "FovealComposite.ush")
 

@@ -13,8 +13,20 @@
 
 // pbl.Vision: -1 = как в настройках, 0 = выкл, 1 = вкл. Для A/B по Э9.4.
 static TAutoConsoleVariable<int32> CVarPBLVision(TEXT("pbl.Vision"), -1, TEXT("Foveal vision: -1 settings, 0 off, 1 on"));
-// pbl.VisionDebug: -1 = как в настройках; 0 композит, 1/2 боковые RT сырые, 3 только центр.
+// pbl.VisionDebug: -1 = как в настройках; 0 композит, 1/2 боковые RT сырые, 3 только центр, 4 тонировка.
 static TAutoConsoleVariable<int32> CVarPBLVisionDebug(TEXT("pbl.VisionDebug"), -1, TEXT("Foveal vision debug view"));
+// Живой подбор проекции из консоли; отрицательное = брать из настроек.
+static TAutoConsoleVariable<float> CVarEdgeYaw(TEXT("pbl.Vision.EdgeYaw"), -1.0f, TEXT("Yaw at screen edge (90 = 180 deg total)"));
+static TAutoConsoleVariable<float> CVarRectYaw(TEXT("pbl.Vision.RectYaw"), -1.0f, TEXT("Half-angle of the undistorted center"));
+static TAutoConsoleVariable<float> CVarRectWidth(TEXT("pbl.Vision.RectWidth"), -1.0f, TEXT("Fraction of half-width for the center"));
+static TAutoConsoleVariable<float> CVarVertCompress(TEXT("pbl.Vision.VertCompress"), -1.0f, TEXT("Vertical compression power 0..1"));
+static TAutoConsoleVariable<float> CVarBlurMax(TEXT("pbl.Vision.Blur"), -1.0f, TEXT("Max peripheral blur, degrees"));
+
+static float Pick(const TAutoConsoleVariable<float>& CVar, float Fallback)
+{
+	const float V = CVar.GetValueOnGameThread();
+	return V >= 0.0f ? V : Fallback;
+}
 
 namespace
 {
@@ -168,12 +180,16 @@ void UPBLVisionComponent::PushParameters()
 	CompositeMID->SetScalarParameterValue(TEXT("CenterFOV"), Camera->FieldOfView);
 	CompositeMID->SetScalarParameterValue(TEXT("SideYaw"), S->SideYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("SideFOV"), S->SideFOV);
-	CompositeMID->SetScalarParameterValue(TEXT("RectYaw"), S->RectYaw);
-	CompositeMID->SetScalarParameterValue(TEXT("RectWidth"), S->RectWidth);
+	CompositeMID->SetScalarParameterValue(TEXT("RectYaw"), Pick(CVarRectYaw, S->RectYaw));
+	CompositeMID->SetScalarParameterValue(TEXT("RectWidth"), Pick(CVarRectWidth, S->RectWidth));
+	CompositeMID->SetScalarParameterValue(TEXT("EdgeYaw"), Pick(CVarEdgeYaw, S->EdgeYaw));
+	CompositeMID->SetScalarParameterValue(TEXT("PitchCap"), S->PitchCap);
+	CompositeMID->SetScalarParameterValue(TEXT("VertCompress"), Pick(CVarVertCompress, S->VertCompress));
+	CompositeMID->SetScalarParameterValue(TEXT("VertBlendDeg"), S->VertBlendDeg);
 	CompositeMID->SetScalarParameterValue(TEXT("BlendStart"), S->BlendStartYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("BlendEnd"), S->BlendEndYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("BlurStartYaw"), S->BlurStartYaw);
-	CompositeMID->SetScalarParameterValue(TEXT("BlurMaxDeg"), S->BlurMaxDeg);
+	CompositeMID->SetScalarParameterValue(TEXT("BlurMaxDeg"), Pick(CVarBlurMax, S->BlurMaxDeg));
 	CompositeMID->SetScalarParameterValue(TEXT("Debug"), (float)Debug);
 }
 

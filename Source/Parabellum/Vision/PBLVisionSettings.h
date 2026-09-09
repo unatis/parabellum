@@ -32,14 +32,14 @@ public:
 	 * Поворот боковых камер от направления взгляда. Вместе с SideFOV должен закрывать
 	 * yaw от ~5 до 90+ и pitch до +-35: бока начинаются с SideYaw - SideFOV/2, и всё, что
 	 * левее этого угла и выше охвата прямоугольного центра, иначе остаётся чёрным.
-	 * 77.5/90 давали чёрные углы; 60/110 закрывают всё.
+	 * 77.5/90 давали чёрные углы; 60/130 закрывают всё, включая PitchCap 60 у кромки.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 30, ClampMax = 90))
 	float SideYaw = 60.0f;
 
 	/** FOV боковых камер (квадратный RT, поэтому горизонтальный = вертикальный). */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 40, ClampMax = 140))
-	float SideFOV = 110.0f;
+	float SideFOV = 130.0f;
 
 	/** Сторона бокового RT = min(ширина, высота экрана) * это. Периферия размывается - хватит и 0.5. */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 0.1, ClampMax = 1.0))
@@ -51,9 +51,25 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 10, ClampMax = 60))
 	float RectYaw = 35.0f;
 
-	/** Какую долю полуширины экрана занимает ректилинейная зона. Остаток - под 90-RectYaw градусов периферии. */
+	/** Какую долю полуширины экрана занимает ректилинейная зона. Остаток - под EdgeYaw-RectYaw градусов периферии. */
 	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 0.3, ClampMax = 0.95))
 	float RectWidth = 0.70f;
+
+	/** Yaw у кромки экрана. 90 = полные 180 по горизонтали (спека); меньше - мягче сжатие периферии. */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 45, ClampMax = 100))
+	float EdgeYaw = 90.0f;
+
+	/** Вертикальное сжатие периферии как степень горизонтального: 1 = изотропно (всё у кромки схлопывается), 0 = только по ширине (тонкие полоски). */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 0, ClampMax = 1))
+	float VertCompress = 0.5f;
+
+	/** За сколько градусов после RectYaw вертикальный масштаб переходит от перспективы к сжатию (убирает гребень на границе). */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 1, ClampMax = 40))
+	float VertBlendDeg = 10.0f;
+
+	/** Насколько высоко (по pitch) может смотреть кромка экрана. Должно покрываться боковыми камерами (SideFOV/2). */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 30, ClampMax = 85))
+	float PitchCap = 60.0f;
 
 	// --- Шов центр/бока: плавный переход по |yaw| ---
 
