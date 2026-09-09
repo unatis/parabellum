@@ -121,10 +121,19 @@ def main():
         spawn(unreal.PlayerStart, (x, y, z), (0, yaw, 0), f"PlayerStart_{i}", "Spawns")
     log(f"player starts: {len(PLAYER_STARTS)}")
 
+    # Свет полностью динамический (Lumen): без Movable он ждёт запечённых лайтмап,
+    # и уровень рендерится чёрным с надписью LIGHTING NEEDS TO BE REBUILT.
     sun = spawn(unreal.DirectionalLight, (0, 0, 1000), SUN_ROTATION, "Sun", "Lighting")
-    sun.get_component_by_class(unreal.DirectionalLightComponent).set_intensity(SUN_INTENSITY_LUX)
+    sun_c = sun.get_component_by_class(unreal.DirectionalLightComponent)
+    sun_c.set_mobility(unreal.ComponentMobility.MOVABLE)
+    sun_c.set_intensity(SUN_INTENSITY_LUX)
     sky = spawn(unreal.SkyLight, (0, 0, 1000), label="SkyLight", folder="Lighting")
-    sky.get_component_by_class(unreal.SkyLightComponent).set_editor_property("real_time_capture", True)
+    sky_c = sky.get_component_by_class(unreal.SkyLightComponent)
+    sky_c.set_mobility(unreal.ComponentMobility.MOVABLE)
+    sky_c.set_editor_property("real_time_capture", True)
+
+    ws = ell.get_editor_world().get_world_settings()
+    ws.set_editor_property("force_no_precomputed_lighting", True)
     spawn(unreal.SkyAtmosphere, (0, 0, 0), label="SkyAtmosphere", folder="Lighting")
 
     ppv = spawn(unreal.PostProcessVolume, (0, 0, 0), label="PP_FixedExposure", folder="Lighting")
