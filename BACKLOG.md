@@ -26,12 +26,12 @@
 
 ## Э2 — Движение (референс: CS)
 
-- [ ] **E2.1** Enhanced Input: Input Actions + Mapping Context. **Внимание**: это .uasset → создаём Python-скриптом, руками агент не может
-- [ ] **E2.2** Ходьба/бег/приседание на `CharacterMovementComponent`
+- [x] **E2.1** Enhanced Input: Input Actions + Mapping Context. Генерирует `Tools/make_input_assets.py` через `-run=pythonscript` (без открытия редактора, ~1 c). Раскладка — в скрипте, ассеты в `Content/Input/` — производные
+- [~] **E2.2** Ходьба/бег/приседание на `CharacterMovementComponent` — привязано (WASD, Space, LCtrl), не проверено руками
 - [ ] **E2.3** Тюнинг под CS-ощущение: скорость, ускорение/торможение (в CS оно почти мгновенное), инерция, air control, отсутствие «плавания» UE по умолчанию
-- [ ] **E2.4** Мышь: сырой ввод, чувствительность в тех же единицах что и CS, **без** сглаживания и акселерации
+- [~] **E2.4** Мышь: сырой ввод, чувствительность в тех же единицах что и CS (`0.022 * sens`), **без** сглаживания и акселерации. `bEnableLegacyInputScales=False`. Знак по Y не проверен — возможно, понадобится `bInvertMouseY`
 - [ ] **E2.5** Прыжок и его влияние на точность (в CS стрельба в прыжке наказывается)
-- [ ] **E2.6** Все параметры движения — в `UPBLMovementSettings` (DeveloperSettings, правится через .ini)
+- [x] **E2.6** Все параметры движения — в `UPBLMovementSettings` (DeveloperSettings, правится через `DefaultGame.ini`, секция `[/Script/Parabellum.PBLMovementSettings]`)
 
 ## Э3 — Greybox-уровень
 
@@ -106,6 +106,7 @@
 - **.uasset/Blueprint агент не редактирует** — бинарь. Всё, что можно, живёт в C++ и .ini; ассеты, которых не избежать (Input Actions, Render Targets, материалы) — создаются Python-скриптами и лежат в git как генерируемые.
 - **Тулчейн**: UE 5.8.2 **не берёт компилятор VS 2026 (v14.51)**, откатывается на **MSVC v143 / v14.44**. Компонент «MSVC v143 - VS 2022 C++ x64/x86 build tools (v14.44-17.14)» обязателен, без него сборки нет.
 - **Сборка из CLI работает** (`Build.bat ParabellumEditor Win64 Development`, ~87 c, exit 0) — агент компилирует и читает ошибки сам.
+- **Python в UE 5.8 из Python-скрипта**: фабрики зовутся `InputAction_Factory` / `InputMappingContext_Factory`; `unreal.Key()` без аргументов + `set_editor_property('key_name', ...)`; `InputMappingContext.map_key()` из Python **не добавляет** маппинг — собирать `EnhancedActionKeyMapping` руками и класть массив `mappings` целиком.
 - **Headless smoke-test работает**: `UnrealEditor-Cmd.exe Parabellum.uproject <map> -game -unattended -nullrhi -nosound -ExecCmds="quit"` → лог в `Saved/Logs/Parabellum.log`. Агент видит, какой GameMode загрузился, что заспавнилось, и все ошибки/варнинги. Не использовать `-abslog` с путём через `~1` — молча не пишется.
 - **Цикл проверки**: агент не видит вьюпорт. Нужно решить, как смотрим результат — билд из командной строки + запуск с `-ExecCmds` и скриншотом, или пользователь смотрит и описывает. Это надо наладить на Э1, иначе Э7 (подбор на глаз) встанет.
 - **Материал композита** — это .uasset. Скорее всего придётся собирать его Python-скриптом с Custom-нодой, куда подставляется HLSL из .usf файла. HLSL тогда живёт текстом в репозитории и правится нормально.

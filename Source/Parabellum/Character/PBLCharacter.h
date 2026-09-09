@@ -5,16 +5,21 @@
 #include "PBLCharacter.generated.h"
 
 class UCameraComponent;
+class UInputAction;
+struct FInputActionValue;
 
 /**
  * Базовый персонаж Parabellum.
  *
- * Ответственность: тело в мире и его состояние — движение, здоровье, оружие в руках.
+ * Ответственность: тело в мире и его состояние - движение, здоровье, оружие в руках.
  * Всё это авторитетно на сервере и реплицируется владельцу и остальным.
  *
- * Сюда НЕ кладём: обработку клавиш (это APBLPlayerController), правила матча
- * (это APBLGameMode), рисование HUD. Персонаж не знает, живой игрок им управляет
- * или бот — иначе сеть и AI разъедутся.
+ * Ввод: действия Enhanced Input привязываются здесь (SetupPlayerInputComponent) -
+ * это конвенция UE, InputComponent пешки активен только у локально управляемой.
+ * Но какие клавиши что означают (Mapping Context), чувствительность, HUD -
+ * это APBLPlayerController. Правила матча - APBLGameMode.
+ *
+ * Персонаж не знает, живой игрок им управляет или бот - иначе сеть и AI разъедутся.
  */
 UCLASS(Config=Game)
 class PARABELLUM_API APBLCharacter : public ACharacter
@@ -26,8 +31,25 @@ public:
 
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 
+	virtual void PostInitializeComponents() override;
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+
 protected:
 	virtual void BeginPlay() override;
+
+	// --- Обработчики ввода ---
+	void Input_Move(const FInputActionValue& Value);
+	void Input_Look(const FInputActionValue& Value);
+	void Input_CrouchStart();
+	void Input_CrouchStop();
+
+	/** Переносит UPBLMovementSettings в капсулу и CharacterMovementComponent. */
+	void ApplyMovementSettings();
+
+	/** Ставит камеру на высоту глаз относительно текущего размера капсулы. */
+	void UpdateCameraHeight();
 
 	/**
 	 * Камера от первого лица. Живёт на пешке, а не на контроллере: она следует
@@ -36,14 +58,26 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Parabellum|Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
 
-	/** Высота глаз над низом капсулы. Подбирается на Э2 вместе с размером капсулы. */
-	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Camera")
-	float CameraHeight = 64.0f;
-
 	/**
-	 * FOV центрального рендера. По спеке зрения — 100–110°.
+	 * FOV центрального рендера. По спеке зрения - 100-110 градусов.
 	 * До Э6 это просто широкий обзор, после станет центральной зоной композита.
 	 */
 	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Camera")
 	float CenterFieldOfView = 103.0f;
+
+	// --- Действия ввода. Это .uasset: создаются Tools/make_input_assets.py,
+	//     пути задаются в DefaultGame.ini. Мягкие ссылки: нет ассета - нет
+	//     действия, но игра не падает. ---
+
+	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
+	TSoftObjectPtr<UInputAction> MoveAction;
+
+	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
+	TSoftObjectPtr<UInputAction> LookAction;
+
+	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
+	TSoftObjectPtr<UInputAction> JumpAction;
+
+	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
+	TSoftObjectPtr<UInputAction> CrouchAction;
 };
