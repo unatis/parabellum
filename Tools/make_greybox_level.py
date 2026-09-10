@@ -16,6 +16,7 @@ CUBE = "/Engine/BasicShapes/Cube"          # 100x100x100 см, пивот в ц�
 # Пол - ровный серый: WorldGridMaterial (по умолчанию у куба) шумит процедурной крапиной, которая
 # в боковых захватах системы зрения выглядит иначе, чем в центре. Стены/укрытия остаются с сеткой.
 FLOOR_MATERIAL = "/Engine/BasicShapes/BasicShapeMaterial"
+FLOOR_GREY = 0.28   # альбедо пола (бетон ~0.25-0.35)
 
 ARENA = 4000        # сторона квадрата
 WALL_H = 350
@@ -95,6 +96,30 @@ def spawn(cls, loc, rot=(0, 0, 0), label=None, folder=None):
     return actor
 
 
+def make_floor_material():
+    """Серый экземпляр BasicShapeMaterial (сам он почти белый и выжигается при нашей экспозиции)."""
+    parent = eal.load_asset(FLOOR_MATERIAL)
+    if parent is None:
+        return None
+    path, name = "/Game/Greybox", "MI_Floor"
+    full = f"{path}/{name}"
+    mel = unreal.MaterialEditingLibrary
+    if eal.does_asset_exist(full):
+        mi = eal.load_asset(full)
+    else:
+        factory = unreal.MaterialInstanceConstantFactoryNew()
+        mi = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, path, unreal.MaterialInstanceConstant, factory)
+        mel.set_material_instance_parent(mi, parent)
+    names = [str(n) for n in mel.get_vector_parameter_names(parent)]
+    log(f"floor material vector params: {names}")
+    for n in names:
+        if n.lower() in ("color", "basecolor", "base color"):
+            mel.set_material_instance_vector_parameter_value(mi, n, unreal.LinearColor(FLOOR_GREY, FLOOR_GREY, FLOOR_GREY, 1.0))
+    mel.update_material_instance(mi)
+    eal.save_loaded_asset(mi)
+    return mi
+
+
 def main():
     full = f"{LEVEL_PATH}/{LEVEL_NAME}"
     if eal.does_asset_exist(full):
@@ -114,7 +139,7 @@ def main():
     if cube is None:
         raise RuntimeError(f"no mesh {CUBE}")
 
-    floor_mat = eal.load_asset(FLOOR_MATERIAL)
+    floor_mat = make_floor_material()
     for label, center, size, rot in LAYOUT:
         a = spawn(unreal.StaticMeshActor, center, rot, label, "Geometry")
         a.static_mesh_component.set_static_mesh(cube)
