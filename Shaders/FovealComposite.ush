@@ -4,8 +4,8 @@
 // Входы ноды (все скаляры - VectorParameter приходит в Custom как float3, .w нет):
 //   UV (ViewportUV), SceneTex (регистрирует PostProcessInput0), SideL, SideR (Texture2D),
 //   Aspect, CenterFOV, SideYaw, SideFOV, TotalFOV, PaniniD, CamPitch, PitchAlignStart, PitchAlignEnd,
-//   SideExposureFix, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
-// Debug: 1/2 - левый/правый RT сырой, 3 - только центр, 4 - композит с тонировкой источников
+//   SideExposureFix, SideMip, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
+// Debug: 1/2 - левый/правый RT сырой, 3 - только центр, 4 - композит с тонировкой источников, 5 - отношение яркости бок/центр
 //        (левый бок красноватый, правый зеленоватый, центр как есть) - для поиска швов и рассинхрона.
 // Кадр камеры: x вправо, y вверх, z вперёд. Экран: u вправо, v вниз.
 //
@@ -36,8 +36,8 @@ float tanVc = tanHc / aspect;
 float tanS  = tan(sideFov * 0.5f);
 
 // --- отладочные виды ---
-if (Debug > 0.5f && Debug < 1.5f) return Texture2DSampleLevel(SideL, SideLSampler, UV, 0).rgb;
-if (Debug > 1.5f && Debug < 2.5f) return Texture2DSampleLevel(SideR, SideRSampler, UV, 0).rgb;
+if (Debug > 0.5f && Debug < 1.5f) return Texture2DSampleLevel(SideL, SideLSampler, UV, SideMip).rgb / max(EyeAdaptationLookup(), 1e-6f);
+if (Debug > 1.5f && Debug < 2.5f) return Texture2DSampleLevel(SideR, SideRSampler, UV, SideMip).rgb / max(EyeAdaptationLookup(), 1e-6f);
 if (Debug > 2.5f && Debug < 3.5f) return SceneTextureLookup(UV, 14, false).rgb;
 
 // --- экран -> (yaw, pitch), Панини ---
@@ -96,8 +96,9 @@ for (int i = 0; i < 9; i++)
 	float2 s = float2(ds.x, ds.y) / max(ds.z, 1e-4f) / tanS;
 	float inS = (ds.z > 0.0f) ? smoothstep(1.0f, 0.92f, max(abs(s.x), abs(s.y))) : 0.0f;
 	float2 uvs = saturate(float2(0.5f + 0.5f * s.x, 0.5f - 0.5f * s.y));
-	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, 0).rgb
-	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, 0).rgb;
+	// Мип бокового RT = периферийное размытие и подавление алиасинга захвата (у RT включены мипы).
+	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, SideMip).rgb
+	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, SideMip).rgb;
 	// Бока захвачены как FinalColorHDR (с экспозицией и TAA), центр здесь ещё до экспозиции - возвращаем.
 	colS *= lerp(1.0f, 1.0f / max(EyeAdaptationLookup(), 1e-6f), SideExposureFix);
 	if (Debug > 3.5f)
@@ -107,6 +108,18 @@ for (int i = 0; i < 9; i++)
 
 	// Веса по зоне смешивания, но если один источник направление не покрывает -
 	// второй берётся целиком вне зависимости от зоны (верх/низ вне центра, края).
+	// Debug 5: отношение яркости бок/центр там, где покрывают оба. 0.5 серый = равны, светлее = бок ярче.
+	if (Debug > 4.5f)
+	{
+		float lc = dot(colC, float3(0.3f, 0.59f, 0.11f));
+		float ls = dot(colS, float3(0.3f, 0.59f, 0.11f));
+		float both = inC * inS;
+		float ratio = (lc > 1e-5f) ? ls / lc : 1.0f;
+		acc  += (both > 0.0f ? float3(0.5f, 0.5f, 0.5f) * ratio : float3(0.0f, 0.0f, 0.15f)) * tapW;
+		wsum += tapW;
+		continue;
+	}
+
 	float wC = inC * max(1.0f - wSide, 1.0f - inS);
 	float wS = inS * max(wSide, 1.0f - inC);
 	float have = wC + wS;

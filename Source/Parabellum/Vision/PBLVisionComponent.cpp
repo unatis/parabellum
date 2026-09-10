@@ -63,7 +63,7 @@ namespace
 		UTextureRenderTarget2D* RT = NewObject<UTextureRenderTarget2D>(Outer, Name);
 		RT->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
 		RT->ClearColor = FLinearColor::Black;
-		RT->bAutoGenerateMips = false;
+		RT->bAutoGenerateMips = true;   // мипы = дешёвое периферийное размытие при чтении (SideMip)
 		RT->InitAutoFormat(Size, Size);
 		RT->UpdateResourceImmediate(true);
 		return RT;
@@ -198,6 +198,7 @@ void UPBLVisionComponent::PushParameters()
 	const float CamPitch = FRotator::NormalizeAxis(Camera->GetComponentRotation().Pitch);
 	CompositeMID->SetScalarParameterValue(TEXT("CamPitch"), CamPitch);
 	CompositeMID->SetScalarParameterValue(TEXT("SideExposureFix"), 1.0f);
+	CompositeMID->SetScalarParameterValue(TEXT("SideMip"), S->SideMip);
 	UpdateSideRotation(EffectivePitch(CamPitch));
 	CompositeMID->SetScalarParameterValue(TEXT("PitchAlignStart"), S->PitchAlignStart);
 	CompositeMID->SetScalarParameterValue(TEXT("PitchAlignEnd"), S->PitchAlignEnd);
