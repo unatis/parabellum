@@ -13,10 +13,8 @@ import unreal
 LEVEL_PATH = "/Game/Maps"
 LEVEL_NAME = "Greybox"
 CUBE = "/Engine/BasicShapes/Cube"          # 100x100x100 см, пивот в центре
-# Пол - ровный серый: WorldGridMaterial (по умолчанию у куба) шумит процедурной крапиной, которая
-# в боковых захватах системы зрения выглядит иначе, чем в центре. Стены/укрытия остаются с сеткой.
-FLOOR_MATERIAL = "/Engine/BasicShapes/BasicShapeMaterial"
-FLOOR_GREY = 0.28   # альбедо пола (бетон ~0.25-0.35)
+# Пол - свой материал M_FloorGrid (см. FLOOR_GRID_HLSL): WorldGridMaterial движка шумит процедурной
+# крапиной, зависящей от дистанции, и в боковых захватах выглядит иначе, чем в центре.
 
 ARENA = 4000        # сторона квадрата
 WALL_H = 350
@@ -96,28 +94,52 @@ def spawn(cls, loc, rot=(0, 0, 0), label=None, folder=None):
     return actor
 
 
+FLOOR_GRID_HLSL = """
+// Чистая метровая сетка по мировым координатам: без шума, одинаково во всех рендерах.
+// Ширина линий в единицах сетки растёт с экранным шагом (fwidth) - вдали не рябит, а растворяется.
+float2 p  = WorldPos.xy / 100.0f;
+float2 fw = max(fwidth(p), 1e-5f);
+float  w1 = max(0.015f, 1.5f * max(fw.x, fw.y));
+float2 g1 = abs(frac(p) - 0.5f);
+float  l1 = (1.0f - smoothstep(0.5f - w1, 0.5f, max(g1.x, g1.y))) * saturate((0.25f - w1) / 0.1f);
+float2 p5 = p / 5.0f;
+float  w5 = max(0.006f, 1.5f * max(fw.x, fw.y) / 5.0f);
+float2 g5 = abs(frac(p5) - 0.5f);
+float  l5 = (1.0f - smoothstep(0.5f - w5, 0.5f, max(g5.x, g5.y))) * saturate((0.25f - w5) / 0.1f);
+float  base = 0.28f;
+float  c = lerp(lerp(base, 0.20f, l1), 0.12f, l5);
+return float3(c, c, c);
+"""
+
+
 def make_floor_material():
-    """Серый экземпляр BasicShapeMaterial (сам он почти белый и выжигается при нашей экспозиции)."""
-    parent = eal.load_asset(FLOOR_MATERIAL)
-    if parent is None:
-        return None
-    path, name = "/Game/Greybox", "MI_Floor"
+    """Материал пола: серый с метровой сеткой (Custom node, мировые координаты)."""
+    path, name = "/Game/Greybox", "M_FloorGrid"
     full = f"{path}/{name}"
     mel = unreal.MaterialEditingLibrary
     if eal.does_asset_exist(full):
-        mi = eal.load_asset(full)
+        mat = eal.load_asset(full)
+        mel.delete_all_material_expressions(mat)
     else:
-        factory = unreal.MaterialInstanceConstantFactoryNew()
-        mi = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, path, unreal.MaterialInstanceConstant, factory)
-        mel.set_material_instance_parent(mi, parent)
-    names = [str(n) for n in mel.get_vector_parameter_names(parent)]
-    log(f"floor material vector params: {names}")
-    for n in names:
-        if n.lower() in ("color", "basecolor", "base color"):
-            mel.set_material_instance_vector_parameter_value(mi, n, unreal.LinearColor(FLOOR_GREY, FLOOR_GREY, FLOOR_GREY, 1.0))
-    mel.update_material_instance(mi)
-    eal.save_loaded_asset(mi)
-    return mi
+        mat = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, path, unreal.Material, unreal.MaterialFactoryNew())
+    custom = mel.create_material_expression(mat, unreal.MaterialExpressionCustom, -400, 0)
+    custom.set_editor_property("code", FLOOR_GRID_HLSL)
+    custom.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+    ci = unreal.CustomInput()
+    ci.set_editor_property("input_name", "WorldPos")
+    custom.set_editor_property("inputs", [ci])
+    wp = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -800, 0)
+    if not mel.connect_material_expressions(wp, "", custom, "WorldPos"):
+        raise RuntimeError("floor: connect WorldPos failed")
+    if not mel.connect_material_property(custom, "", unreal.MaterialProperty.MP_BASE_COLOR):
+        raise RuntimeError("floor: connect BaseColor failed")
+    rough = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -400, 300)
+    rough.set_editor_property("r", 0.85)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.recompile_material(mat)
+    eal.save_loaded_asset(mat)
+    log(f"floor material {full}")
+    return mat
 
 
 def main():

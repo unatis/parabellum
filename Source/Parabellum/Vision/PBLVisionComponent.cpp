@@ -14,6 +14,9 @@
 // pbl.Vision: -1 = как в настройках, 0 = выкл, 1 = вкл. Для A/B по Э9.4.
 static TAutoConsoleVariable<int32> CVarPBLVision(TEXT("pbl.Vision"), -1, TEXT("Foveal vision: -1 settings, 0 off, 1 on"));
 // pbl.VisionDebug: -1 = как в настройках; 0 композит, 1/2 боковые RT сырые, 3 только центр, 4 тонировка.
+// Боковые камеры: поворот и FOV на лету (-1 = из настроек). FOV меньше нужного даст чёрные дыры, больше - хуже разрешение боков.
+static TAutoConsoleVariable<float> CVarSideYaw(TEXT("pbl.Vision.SideYaw"), -1.0f, TEXT("Side capture yaw (deg), -1 = settings"));
+static TAutoConsoleVariable<float> CVarSideFOV(TEXT("pbl.Vision.SideFOV"), -1.0f, TEXT("Side capture FOV (deg), -1 = settings"));
 static TAutoConsoleVariable<int32> CVarPBLVisionDebug(TEXT("pbl.VisionDebug"), -1, TEXT("Foveal vision debug view"));
 // Живой подбор проекции из консоли; отрицательное = брать из настроек.
 static TAutoConsoleVariable<float> CVarTotalFOV(TEXT("pbl.Vision.FOV"), -1.0f, TEXT("Total horizontal FOV of the composite"));
@@ -51,9 +54,8 @@ namespace
 		Cap->ShowFlags.SetGrain(false);
 		Cap->ShowFlags.SetTemporalAA(true);
 		Cap->ShowFlags.SetAntiAliasing(true);
-		// Lumen в захватах шумит (нет временного накопления) - на боках он не нужен (спека: "Lumen минимальный или SSGI").
-		Cap->ShowFlags.SetLumenGlobalIllumination(false);
-		Cap->ShowFlags.SetLumenReflections(false);
+		// Lumen на боках ОСТАВЛЯЕМ: без него тени на боках темнее, чем в центре, и на стыке видна
+		// вертикальная тёмная полоса (2026-09-10). "Шум Lumen" оказался крапиной материала пола.
 		Cap->RegisterComponent();
 		return Cap;
 	}
@@ -180,8 +182,12 @@ void UPBLVisionComponent::PushParameters()
 	}
 	CompositeMID->SetScalarParameterValue(TEXT("Aspect"), Aspect);
 	CompositeMID->SetScalarParameterValue(TEXT("CenterFOV"), Camera->FieldOfView);
-	CompositeMID->SetScalarParameterValue(TEXT("SideYaw"), S->SideYaw);
-	CompositeMID->SetScalarParameterValue(TEXT("SideFOV"), S->SideFOV);
+	const float SideYaw = Pick(CVarSideYaw, S->SideYaw);
+	const float SideFOV = Pick(CVarSideFOV, S->SideFOV);
+	CompositeMID->SetScalarParameterValue(TEXT("SideYaw"), SideYaw);
+	CompositeMID->SetScalarParameterValue(TEXT("SideFOV"), SideFOV);
+	if (CaptureL && !FMath::IsNearlyEqual(CaptureL->FOVAngle, SideFOV)) { CaptureL->FOVAngle = SideFOV; }
+	if (CaptureR && !FMath::IsNearlyEqual(CaptureR->FOVAngle, SideFOV)) { CaptureR->FOVAngle = SideFOV; }
 	const float TotalFOV = Pick(CVarTotalFOV, S->TotalFOV);
 	// d Панини вычисляется из плотности центра (CSFov) и TotalFOV; pbl.Vision.D > 0 - ручное переопределение.
 	const float DSolved = SolvePaniniD(TotalFOV, S->CSFov, Aspect);
@@ -250,8 +256,9 @@ void UPBLVisionComponent::UpdateSideRotation(float EffectivePitchDeg)
 	// F = камера, "разогнутая" на p0e; бок = F -> yaw +-SideYaw -> pitch p0e. Зеркало шейдера.
 	const FQuat QF = Camera->GetComponentQuat() * FRotator(-EffectivePitchDeg, 0.0f, 0.0f).Quaternion();
 	const FQuat QPitch = FRotator(EffectivePitchDeg, 0.0f, 0.0f).Quaternion();
-	if (CaptureL) { CaptureL->SetWorldRotation(QF * FRotator(0.0f, -S->SideYaw, 0.0f).Quaternion() * QPitch); }
-	if (CaptureR) { CaptureR->SetWorldRotation(QF * FRotator(0.0f,  S->SideYaw, 0.0f).Quaternion() * QPitch); }
+	const float SideYaw = Pick(CVarSideYaw, S->SideYaw);
+	if (CaptureL) { CaptureL->SetWorldRotation(QF * FRotator(0.0f, -SideYaw, 0.0f).Quaternion() * QPitch); }
+	if (CaptureR) { CaptureR->SetWorldRotation(QF * FRotator(0.0f,  SideYaw, 0.0f).Quaternion() * QPitch); }
 }
 
 float UPBLVisionComponent::SolvePaniniD(float TotalFOV, float CSFov, float Aspect)
