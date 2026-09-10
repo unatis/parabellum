@@ -13,6 +13,9 @@ import unreal
 LEVEL_PATH = "/Game/Maps"
 LEVEL_NAME = "Greybox"
 CUBE = "/Engine/BasicShapes/Cube"          # 100x100x100 см, пивот в центре
+# Пол - ровный серый: WorldGridMaterial (по умолчанию у куба) шумит процедурной крапиной, которая
+# в боковых захватах системы зрения выглядит иначе, чем в центре. Стены/укрытия остаются с сеткой.
+FLOOR_MATERIAL = "/Engine/BasicShapes/BasicShapeMaterial"
 
 ARENA = 4000        # сторона квадрата
 WALL_H = 350
@@ -111,10 +114,13 @@ def main():
     if cube is None:
         raise RuntimeError(f"no mesh {CUBE}")
 
+    floor_mat = eal.load_asset(FLOOR_MATERIAL)
     for label, center, size, rot in LAYOUT:
         a = spawn(unreal.StaticMeshActor, center, rot, label, "Geometry")
         a.static_mesh_component.set_static_mesh(cube)
         a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
+        if label == "Floor" and floor_mat:
+            a.static_mesh_component.set_material(0, floor_mat)
     log(f"geometry: {len(LAYOUT)} boxes")
 
     for i, (x, y, z, yaw) in enumerate(PLAYER_STARTS):

@@ -100,7 +100,7 @@ for (int i = 0; i < 9; i++)
 	// 0.5 у шва (стык остаётся резким) -> SideMip у кромки экрана.
 	// по полному углу от направления взгляда: вниз/вверх бока тоже периферия
 	float offAxisDeg = acos(clamp(d.z, -1.0f, 1.0f)) / D2R;
-	float mip = lerp(0.5f, SideMip, smoothstep(BlendStart, TotalFOV * 0.5f, offAxisDeg));
+	float mip = lerp(0.5f, SideMip, smoothstep(BlendStart, BlendEnd + 10.0f, offAxisDeg));   // полный мип уже к ~60 град
 	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, mip).rgb
 	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, mip).rgb;
 	// Бока захвачены как FinalColorHDR (с экспозицией и TAA), центр здесь ещё до экспозиции - возвращаем.
