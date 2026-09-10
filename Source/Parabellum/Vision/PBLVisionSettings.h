@@ -39,9 +39,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 40, ClampMax = 140))
 	float SideFOV = 80.0f;
 
-	/** Уровень мипа при чтении боковых RT: периферийное размытие и подавление алиасинга захвата. 0 = без. */
+	/** Мип боковых RT у кромки экрана (у шва всегда 0.5): периферийное размытие и подавление алиасинга захвата. */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 0, ClampMax = 4))
-	float SideMip = 1.5f;
+	float SideMip = 2.5f;
 
 	/** Сторона бокового RT = min(ширина, высота экрана) * это. В Панини шов лежит в зоне почти полной плотности - нужно 1.0. */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 0.1, ClampMax = 1.0))

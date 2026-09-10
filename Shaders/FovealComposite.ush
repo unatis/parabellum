@@ -96,9 +96,13 @@ for (int i = 0; i < 9; i++)
 	float2 s = float2(ds.x, ds.y) / max(ds.z, 1e-4f) / tanS;
 	float inS = (ds.z > 0.0f) ? smoothstep(1.0f, 0.92f, max(abs(s.x), abs(s.y))) : 0.0f;
 	float2 uvs = saturate(float2(0.5f + 0.5f * s.x, 0.5f - 0.5f * s.y));
-	// Мип бокового RT = периферийное размытие и подавление алиасинга захвата (у RT включены мипы).
-	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, SideMip).rgb
-	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, SideMip).rgb;
+	// Мип бокового RT = периферийное размытие и подавление алиасинга захвата (у RT включены мипы):
+	// 0.5 у шва (стык остаётся резким) -> SideMip у кромки экрана.
+	// по полному углу от направления взгляда: вниз/вверх бока тоже периферия
+	float offAxisDeg = acos(clamp(d.z, -1.0f, 1.0f)) / D2R;
+	float mip = lerp(0.5f, SideMip, smoothstep(BlendStart, TotalFOV * 0.5f, offAxisDeg));
+	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, mip).rgb
+	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, mip).rgb;
 	// Бока захвачены как FinalColorHDR (с экспозицией и TAA), центр здесь ещё до экспозиции - возвращаем.
 	colS *= lerp(1.0f, 1.0f / max(EyeAdaptationLookup(), 1e-6f), SideExposureFix);
 	if (Debug > 3.5f)
