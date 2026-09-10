@@ -80,7 +80,7 @@ public:
 	 * EI читает RawValue). Если найдётся источник - убрать множитель и вернуть 1.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Mouse", AdvancedDisplay)
-	float MouseCountsScale = 16.0f;
+	float MouseCountsScale = 32.0f;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Mouse")
 	bool bInvertMouseY = false;

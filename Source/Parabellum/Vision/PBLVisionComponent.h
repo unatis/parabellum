@@ -33,6 +33,11 @@ protected:
 	void ApplyEnabled(bool bEnable);
 	void UpdateRenderTargetSize();
 	void PushParameters();
+	void UpdateSideRotation(float EffectivePitchDeg);
+	/** Эффективный наклон системы проекции: до PitchAlignStart - полный, к PitchAlignEnd - ноль. Зеркало шейдера. */
+	static float EffectivePitch(float CamPitchDeg);
+	/** d Панини, при котором плотность центра равна CS с CSFov при данном аспекте и кромка = TotalFOV/2. */
+	static float SolvePaniniD(float TotalFOV, float CSFov, float Aspect);
 
 	UPROPERTY(Transient) TObjectPtr<UCameraComponent> Camera;
 	UPROPERTY(Transient) TObjectPtr<USceneCaptureComponent2D> CaptureL;
@@ -42,6 +47,7 @@ protected:
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> CompositeMID;
 
 	int32 CurrentSideSize = 0;
+	float LastLoggedD = -1.0f;
 	bool bActive = false;
 	bool bSetupDone = false;
 };

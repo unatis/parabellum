@@ -45,13 +45,24 @@ public:
 
 	// --- Проекция Панини: x = (d+1)sin(yaw)/(d+cos(yaw)). Одна гладкая функция, без зон. ---
 
-	/** Полный горизонтальный FOV композита. Кромка экрана = TotalFOV/2. 135 при d=5 даёт центр 97% плотности CS 90. */
+	/** Полный горизонтальный FOV композита. Кромка экрана = TotalFOV/2. 180 достижимо при CSFov 90 (d=3). */
 	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 90, ClampMax = 179))
-	float TotalFOV = 135.0f;
+	float TotalFOV = 160.0f;
 
-	/** Параметр Панини: 1 - классический (мягко, вмещает меньше), больше - ближе к цилиндрической ортографике (сильнее жмёт края). */
-	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 0.5, ClampMax = 50))
-	float PaniniD = 5.0f;
+	/**
+	 * Плотность пикселей в центре = как у CS с этим fov (CS-fov задаётся для 4:3, на 16:9 90 -> 106x74).
+	 * Из этого и TotalFOV вычисляется d Панини (см. UPBLVisionComponent::SolvePaniniD).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 60, ClampMax = 120))
+	float CSFov = 90.0f;
+
+	/** До какого |pitch| камеры ось проекции полностью привязана к вертикали мира (прямой горизонт и прямые вертикали при наклоне головы). */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 0, ClampMax = 89))
+	float PitchAlignStart = 40.0f;
+
+	/** К какому |pitch| ось проекции полностью переходит к камерной (мировая у зенита вырождается). */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 1, ClampMax = 90))
+	float PitchAlignEnd = 70.0f;
 
 	// --- Шов центр/бока: плавный переход по |yaw| ---
 
@@ -76,6 +87,6 @@ public:
 	float BlurMaxDeg = 0.3f;
 
 	/** 0 - композит; 1/2 - левый/правый RT сырой; 3 - только центр; 4 - композит с тонировкой боков (швы). */
-	UPROPERTY(Config, EditAnywhere, Category = "Debug", meta = (ClampMin = 0, ClampMax = 4))
+	UPROPERTY(Config, EditAnywhere, Category = "Debug", meta = (ClampMin = 0, ClampMax = 5))
 	int32 DebugView = 0;
 };

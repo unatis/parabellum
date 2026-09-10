@@ -3,7 +3,8 @@
 //
 // Входы ноды (все скаляры - VectorParameter приходит в Custom как float3, .w нет):
 //   UV (ViewportUV), SceneTex (регистрирует PostProcessInput0), SideL, SideR (Texture2D),
-//   Aspect, CenterFOV, SideYaw, SideFOV, TotalFOV, PaniniD, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
+//   Aspect, CenterFOV, SideYaw, SideFOV, TotalFOV, PaniniD, CamPitch, PitchAlignStart, PitchAlignEnd,
+//   SideExposureFix, BlendStart, BlendEnd, BlurStartYaw, BlurMaxDeg, Debug.
 // Debug: 1/2 - левый/правый RT сырой, 3 - только центр, 4 - композит с тонировкой источников
 //        (левый бок красноватый, правый зеленоватый, центр как есть) - для поиска швов и рассинхрона.
 // Кадр камеры: x вправо, y вверх, z вперёд. Экран: u вправо, v вниз.
@@ -15,6 +16,10 @@
 // к цилиндрической ортографике (сильнее сжимает края, вмещает больше). При 135/5 центр = 97% плотности CS 90.
 // Обратная функция (депроекция выстрела, Э8): xp = x/sN; R = sqrt((d+1)^2+xp^2); a = atan2(xp, d+1);
 //   yaw = a + asin(xp*d/R);  S = (d+1)/(d+cos(yaw));  pitch = atan((y/aspect)/(sN*S)).
+// Ось проекции привязана к вертикали МИРА, а не камеры: yaw считается вокруг мирового "вверх", pitch на
+// экране - относительно направления взгляда. Иначе при наклоне головы горизонт складывается чашей.
+// При |CamPitch| > PitchAlignStart ось плавно переходит к камерной (к PitchAlignEnd полностью) - у зенита
+// мировая ось вырождается.
 // Отвергнутые версии: v1 гипербола от оси (центр гнулся), v2 рект. центр + цилиндр (ряды гнулись),
 // v3 рект. центр + сжатая периферия (горб/гребень на границе зон - неизбежен при двух режимах).
 
@@ -46,7 +51,13 @@ float R  = sqrt((d + 1.0f) * (d + 1.0f) + xp * xp);
 float al = atan2(xp, d + 1.0f);
 float yaw = al + asin(clamp(xp * d / R, -1.0f, 1.0f));
 float S  = (d + 1.0f) / (d + cos(yaw));
-float pitch = atan((yn / aspect) / (sN * S));
+float pitch = atan((yn / aspect) / (sN * S));      // относительно направления взгляда
+
+// Эффективный наклон системы координат проекции: до PitchAlignStart - полностью мировая ось,
+// к PitchAlignEnd - полностью камерная.
+float p0  = CamPitch * D2R;
+float p0e = p0 * (1.0f - smoothstep(PitchAlignStart, PitchAlignEnd, abs(CamPitch)));
+float cP = cos(p0e), sP = sin(p0e);
 
 float ayawDeg = abs(yaw) / D2R;
 float blurDeg = BlurMaxDeg * smoothstep(BlurStartYaw, 90.0f, ayawDeg);
@@ -61,9 +72,11 @@ for (int i = 0; i < 9; i++)
 	float a = (float)i * (PI / 4.0f);
 	float2 off = (i == 0) ? float2(0, 0) : blurDeg * float2(cos(a), sin(a)) * D2R;
 	float yw = yaw + off.x;
-	float pt = pitch + off.y;
-	float cp = cos(pt), sp = sin(pt);
-	float3 d = float3(sin(yw) * cp, sp, cos(yw) * cp);
+	float pf = p0e + pitch + off.y;                    // pitch в системе проекции
+	float cp = cos(pf), sp = sin(pf);
+	float3 df = float3(sin(yw) * cp, sp, cos(yw) * cp); // направление в системе проекции
+	// в систему камеры (камера смотрит вверх на p0e внутри системы проекции)
+	float3 d = float3(df.x, df.y * cP - df.z * sP, df.y * sP + df.z * cP);
 
 	float wSide = smoothstep(BlendStart, BlendEnd, abs(yw) / D2R);
 
@@ -74,15 +87,19 @@ for (int i = 0; i < 9; i++)
 	float2 uvc = saturate(float2(0.5f + 0.5f * c.x, 0.5f - 0.5f * c.y));
 	float3 colC = SceneTextureLookup(uvc, 14, false).rgb;
 
-	// бок (поворот на -+sideYaw вокруг вертикали камеры)
+	// бок: в системе проекции поворот на -+sideYaw вокруг её вертикали, затем в кадр боковой камеры
+	// (она смотрит вверх на p0e внутри повёрнутой системы) - зеркально UPBLVisionComponent::UpdateSideRotation.
 	float sgn = (yw >= 0.0f) ? 1.0f : -1.0f;
 	float cy = cos(sideYaw), sy = sin(sideYaw);
-	float3 ds = float3(d.x * cy - sgn * d.z * sy, d.y, sgn * d.x * sy + d.z * cy);
+	float3 d1 = float3(df.x * cy - sgn * df.z * sy, df.y, sgn * df.x * sy + df.z * cy);
+	float3 ds = float3(d1.x, d1.y * cP - d1.z * sP, d1.y * sP + d1.z * cP);
 	float2 s = float2(ds.x, ds.y) / max(ds.z, 1e-4f) / tanS;
 	float inS = (ds.z > 0.0f) ? smoothstep(1.0f, 0.92f, max(abs(s.x), abs(s.y))) : 0.0f;
 	float2 uvs = saturate(float2(0.5f + 0.5f * s.x, 0.5f - 0.5f * s.y));
 	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, 0).rgb
 	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, 0).rgb;
+	// Бока захвачены как FinalColorHDR (с экспозицией и TAA), центр здесь ещё до экспозиции - возвращаем.
+	colS *= lerp(1.0f, 1.0f / max(EyeAdaptationLookup(), 1e-6f), SideExposureFix);
 	if (Debug > 3.5f)
 	{
 		colS *= (sgn > 0.0f) ? float3(0.5f, 1.0f, 0.5f) : float3(1.0f, 0.5f, 0.5f);

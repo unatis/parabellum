@@ -35,8 +35,9 @@ namespace
 		Cap->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
 		Cap->FOVAngle = FOV;
 		Cap->ProjectionType = ECameraProjectionMode::Perspective;
-		// HDR линейный цвет без постобработки: композит сам делает bloom/тонмап один раз.
-		Cap->CaptureSource = ESceneCaptureSource::SCS_SceneColorHDR;
+		// FinalColorHDR: линейный HDR после постобработки - ради TAA/TSR (иначе Lumen-шум на боках).
+		// Экспозиция в нём уже применена; композит делит на EyeAdaptationLookup() (SideExposureFix).
+		Cap->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
 		Cap->bCaptureEveryFrame = true;
 		Cap->bCaptureOnMovement = false;
 		Cap->bAlwaysPersistRenderingState = true; // нужно Lumen/TSR-истории в захватах (5.3+)
@@ -48,8 +49,11 @@ namespace
 		Cap->ShowFlags.SetLensFlares(false);
 		Cap->ShowFlags.SetVignette(false);
 		Cap->ShowFlags.SetGrain(false);
-		Cap->ShowFlags.SetTemporalAA(false);
-		Cap->ShowFlags.SetAntiAliasing(false);
+		Cap->ShowFlags.SetTemporalAA(true);
+		Cap->ShowFlags.SetAntiAliasing(true);
+		// Lumen в захватах шумит (нет временного накопления) - на боках он не нужен (спека: "Lumen минимальный или SSGI").
+		Cap->ShowFlags.SetLumenGlobalIllumination(false);
+		Cap->ShowFlags.SetLumenReflections(false);
 		Cap->RegisterComponent();
 		return Cap;
 	}
@@ -178,8 +182,25 @@ void UPBLVisionComponent::PushParameters()
 	CompositeMID->SetScalarParameterValue(TEXT("CenterFOV"), Camera->FieldOfView);
 	CompositeMID->SetScalarParameterValue(TEXT("SideYaw"), S->SideYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("SideFOV"), S->SideFOV);
-	CompositeMID->SetScalarParameterValue(TEXT("TotalFOV"), Pick(CVarTotalFOV, S->TotalFOV));
-	CompositeMID->SetScalarParameterValue(TEXT("PaniniD"), Pick(CVarPaniniD, S->PaniniD));
+	const float TotalFOV = Pick(CVarTotalFOV, S->TotalFOV);
+	// d Панини вычисляется из плотности центра (CSFov) и TotalFOV; pbl.Vision.D > 0 - ручное переопределение.
+	const float DSolved = SolvePaniniD(TotalFOV, S->CSFov, Aspect);
+	const float PaniniD = CVarPaniniD.GetValueOnGameThread() > 0.0f ? CVarPaniniD.GetValueOnGameThread() : DSolved;
+	CompositeMID->SetScalarParameterValue(TEXT("TotalFOV"), TotalFOV);
+	CompositeMID->SetScalarParameterValue(TEXT("PaniniD"), PaniniD);
+	if (!FMath::IsNearlyEqual(PaniniD, LastLoggedD, 0.01f))
+	{
+		LastLoggedD = PaniniD;
+		UE_LOG(LogTemp, Display, TEXT("PBL Vision: TotalFOV %.0f, CSFov %.0f @ aspect %.3f -> Panini d = %.3f"), TotalFOV, S->CSFov, Aspect, PaniniD);
+	}
+	// Ось проекции привязана к вертикали мира: шейдеру нужен наклон камеры, а боковым камерам -
+	// поворот вокруг вертикали системы проекции, не камеры.
+	const float CamPitch = FRotator::NormalizeAxis(Camera->GetComponentRotation().Pitch);
+	CompositeMID->SetScalarParameterValue(TEXT("CamPitch"), CamPitch);
+	CompositeMID->SetScalarParameterValue(TEXT("SideExposureFix"), 1.0f);
+	UpdateSideRotation(EffectivePitch(CamPitch));
+	CompositeMID->SetScalarParameterValue(TEXT("PitchAlignStart"), S->PitchAlignStart);
+	CompositeMID->SetScalarParameterValue(TEXT("PitchAlignEnd"), S->PitchAlignEnd);
 	CompositeMID->SetScalarParameterValue(TEXT("BlendStart"), S->BlendStartYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("BlendEnd"), S->BlendEndYaw);
 	CompositeMID->SetScalarParameterValue(TEXT("BlurStartYaw"), S->BlurStartYaw);
@@ -211,4 +232,44 @@ void UPBLVisionComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (CaptureL) { CaptureL->DestroyComponent(); }
 	if (CaptureR) { CaptureR->DestroyComponent(); }
 	Super::EndPlay(EndPlayReason);
+}
+
+float UPBLVisionComponent::EffectivePitch(float CamPitchDeg)
+{
+	const UPBLVisionSettings* S = GetDefault<UPBLVisionSettings>();
+	const float T = FMath::Clamp((FMath::Abs(CamPitchDeg) - S->PitchAlignStart) / FMath::Max(S->PitchAlignEnd - S->PitchAlignStart, 0.01f), 0.0f, 1.0f);
+	const float Smooth = T * T * (3.0f - 2.0f * T);
+	return CamPitchDeg * (1.0f - Smooth);
+}
+
+void UPBLVisionComponent::UpdateSideRotation(float EffectivePitchDeg)
+{
+	if (!Camera) { return; }
+	const UPBLVisionSettings* S = GetDefault<UPBLVisionSettings>();
+	// F = камера, "разогнутая" на p0e; бок = F -> yaw +-SideYaw -> pitch p0e. Зеркало шейдера.
+	const FQuat QF = Camera->GetComponentQuat() * FRotator(-EffectivePitchDeg, 0.0f, 0.0f).Quaternion();
+	const FQuat QPitch = FRotator(EffectivePitchDeg, 0.0f, 0.0f).Quaternion();
+	if (CaptureL) { CaptureL->SetWorldRotation(QF * FRotator(0.0f, -S->SideYaw, 0.0f).Quaternion() * QPitch); }
+	if (CaptureR) { CaptureR->SetWorldRotation(QF * FRotator(0.0f,  S->SideYaw, 0.0f).Quaternion() * QPitch); }
+}
+
+float UPBLVisionComponent::SolvePaniniD(float TotalFOV, float CSFov, float Aspect)
+{
+	// CS задаёт fov для 4:3: вертикаль = 2*atan(tan(fov/2)*3/4), горизонталь при аспекте = 2*atan(tan(v/2)*aspect).
+	const float HalfV = FMath::Atan(FMath::Tan(FMath::DegreesToRadians(CSFov) * 0.5f) * 0.75f);
+	const float HalfH = FMath::Atan(FMath::Tan(HalfV) * Aspect);
+	const float Target = 1.0f / FMath::Tan(HalfH);          // sN: доля полуширины на tan(1 rad) в центре
+	const float E = FMath::DegreesToRadians(FMath::Clamp(TotalFOV, 90.0f, 179.0f) * 0.5f);
+	const float SinE = FMath::Sin(E), CosE = FMath::Cos(E);
+	// sN(d) = (d+cos e)/((d+1) sin e) растёт по d от cos e/sin e к 1/sin e.
+	auto SN = [&](float D) { return (D + CosE) / ((D + 1.0f) * SinE); };
+	if (Target <= SN(0.01f)) { return 0.01f; }
+	if (Target >= SN(1000.0f)) { return 1000.0f; }
+	float Lo = 0.01f, Hi = 1000.0f;
+	for (int32 i = 0; i < 60; ++i)
+	{
+		const float Mid = 0.5f * (Lo + Hi);
+		if (SN(Mid) < Target) { Lo = Mid; } else { Hi = Mid; }
+	}
+	return 0.5f * (Lo + Hi);
 }
