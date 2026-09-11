@@ -20,6 +20,7 @@ static TAutoConsoleVariable<float> CVarSideFOV(TEXT("pbl.Vision.SideFOV"), -1.0f
 static TAutoConsoleVariable<int32> CVarPBLVisionDebug(TEXT("pbl.VisionDebug"), -1, TEXT("Foveal vision debug view"));
 // Живой подбор проекции из консоли; отрицательное = брать из настроек.
 static TAutoConsoleVariable<float> CVarSideBack(TEXT("pbl.Vision.SideBack"), 0.0f, TEXT("Side cameras offset backwards along view, cm"));
+static TAutoConsoleVariable<int32> CVarDynamic(TEXT("pbl.Vision.Dynamic"), -1, TEXT("Dynamic peripheral FOV on turning: -1 settings, 0 off, 1 on"));
 static TAutoConsoleVariable<int32> CVarMode(TEXT("pbl.Vision.Mode"), -1, TEXT("0 Panini, 1 flat panels; -1 settings"));
 static TAutoConsoleVariable<float> CVarPanelFrac(TEXT("pbl.Vision.PanelFrac"), -1.0f, TEXT("Panel mode: center panel width fraction"));
 static TAutoConsoleVariable<float> CVarPanelScale(TEXT("pbl.Vision.PanelScale"), -1.0f, TEXT("Panel mode: density vs CS"));
@@ -206,7 +207,10 @@ void UPBLVisionComponent::PushParameters()
 	CompositeMID->SetScalarParameterValue(TEXT("SideFOV"), SideFOV);
 	if (CaptureL && !FMath::IsNearlyEqual(CaptureL->FOVAngle, SideFOV)) { CaptureL->FOVAngle = SideFOV; }
 	if (CaptureR && !FMath::IsNearlyEqual(CaptureR->FOVAngle, SideFOV)) { CaptureR->FOVAngle = SideFOV; }
-	const float TotalFOV = Pick(CVarTotalFOV, S->TotalFOV);
+	const float MaxFOV = Pick(CVarTotalFOV, S->TotalFOV);
+	const int32 CVD = CVarDynamic.GetValueOnGameThread();
+	const bool bDynamic = CVD >= 0 ? (CVD != 0) : S->bDynamicFOV;
+	const float TotalFOV = bDynamic ? UpdateDynamicFOV(GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.016f, MaxFOV, Aspect) : MaxFOV;
 	// d Панини вычисляется из плотности центра (CSFov) и TotalFOV; pbl.Vision.D > 0 - ручное переопределение.
 	const float DSolved = SolvePaniniD(TotalFOV, S->CSFov, Aspect);
 	const float PaniniD = CVarPaniniD.GetValueOnGameThread() > 0.0f ? CVarPaniniD.GetValueOnGameThread() : DSolved;
@@ -315,4 +319,29 @@ float UPBLVisionComponent::SolvePaniniD(float TotalFOV, float CSFov, float Aspec
 		if (SN(Mid) < Target) { Lo = Mid; } else { Hi = Mid; }
 	}
 	return 0.5f * (Lo + Hi);
+}
+
+float UPBLVisionComponent::UpdateDynamicFOV(float DeltaTime, float TargetMaxFOV, float Aspect)
+{
+	const UPBLVisionSettings* S = GetDefault<UPBLVisionSettings>();
+	const float RestFOV = S->RestFOV > 0.0f ? S->RestFOV : CSEquivalentHFov(S->CSFov, Aspect);
+	if (!Camera) { return RestFOV; }
+
+	const FRotator Rot = Camera->GetComponentRotation();
+	float SpeedDeg = 0.0f;
+	if (bHasLastCamRot && DeltaTime > 1e-4f)
+	{
+		const float DYaw = FMath::FindDeltaAngleDegrees(LastCamRot.Yaw, Rot.Yaw);
+		const float DPitch = FMath::FindDeltaAngleDegrees(LastCamRot.Pitch, Rot.Pitch);
+		SpeedDeg = FMath::Sqrt(DYaw * DYaw + DPitch * DPitch) / DeltaTime;
+	}
+	LastCamRot = Rot;
+	bHasLastCamRot = true;
+
+	const float Open = FMath::Clamp(SpeedDeg / FMath::Max(S->TurnSpeedFull, 1.0f), 0.0f, 1.0f);
+	const float Target = FMath::Lerp(RestFOV, FMath::Max(TargetMaxFOV, RestFOV), Open);
+	if (DynamicFOV <= 0.0f) { DynamicFOV = RestFOV; }
+	const float Speed = Target > DynamicFOV ? S->OpenSpeed : S->CloseSpeed;
+	DynamicFOV = FMath::FInterpTo(DynamicFOV, Target, DeltaTime, Speed);
+	return DynamicFOV;
 }

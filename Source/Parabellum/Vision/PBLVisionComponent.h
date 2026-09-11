@@ -51,6 +51,12 @@ protected:
 	UPROPERTY(Transient) TObjectPtr<UTextureRenderTarget2D> RenderTargetR;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> CompositeMID;
 
+	/** Динамическая периферия: текущий FOV и последняя ориентация камеры для оценки скорости поворота. */
+	float DynamicFOV = 0.0f;
+	FRotator LastCamRot = FRotator::ZeroRotator;
+	bool bHasLastCamRot = false;
+	float UpdateDynamicFOV(float DeltaTime, float TargetMaxFOV, float Aspect);
+
 	int32 CurrentSideSize = 0;
 	float LastLoggedD = -1.0f;
 	bool bActive = false;

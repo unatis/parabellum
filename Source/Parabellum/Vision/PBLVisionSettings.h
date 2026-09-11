@@ -65,6 +65,28 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Panels", meta = (ClampMin = 0, ClampMax = 0.05))
 	float PanelSeparator = 0.003f;
 
+	// --- Динамическая периферия: в покое/при прицеливании - CS, при повороте раскрывается до TotalFOV ---
+
+	/** Включить динамическую периферию. Плотность центра фиксирована, поэтому прицел не меняет масштаб. */
+	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV")
+	bool bDynamicFOV = true;
+
+	/** FOV в покое. 0 = ровно CS-эквивалент (тогда Панини вырождается в прямоугольную камеру). */
+	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 0, ClampMax = 179))
+	float RestFOV = 0.0f;
+
+	/** Угловая скорость взгляда (град/с), при которой обзор раскрыт полностью до TotalFOV. */
+	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 10, ClampMax = 2000))
+	float TurnSpeedFull = 150.0f;
+
+	/** Скорость раскрытия (FInterpTo). Быстро - периферия включается сразу при повороте. */
+	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 0.1, ClampMax = 50))
+	float OpenSpeed = 10.0f;
+
+	/** Скорость закрытия. Медленнее - внимание "догорает" после остановки. */
+	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 0.1, ClampMax = 50))
+	float CloseSpeed = 2.5f;
+
 	/** Полный горизонтальный FOV композита. Кромка экрана = TotalFOV/2. 180 достижимо при CSFov 90 (d=3). */
 	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 90, ClampMax = 179))
 	float TotalFOV = 160.0f;
