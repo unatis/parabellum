@@ -40,6 +40,38 @@ if (Debug > 0.5f && Debug < 1.5f) return Texture2DSampleLevel(SideL, SideLSample
 if (Debug > 1.5f && Debug < 2.5f) return Texture2DSampleLevel(SideR, SideRSampler, UV, SideMip).rgb / max(EyeAdaptationLookup(), 1e-6f);
 if (Debug > 2.5f && Debug < 3.5f) return SceneTextureLookup(UV, 14, false).rgb;
 
+// --- Режим 1: три плоские панели (как три монитора симрейсера). Центр - чистая перспектива с плотностью
+//     CS (PanelScale=1), боковые - камеры, повёрнутые на SideYaw, той же плотности. На стыке разрыв, без искажений.
+if (Mode > 0.5f)
+{
+	float xn1 = UV.x * 2.0f - 1.0f;
+	float yn1 = 1.0f - UV.y * 2.0f;
+	float kx = tan(CSHalfH * D2R) / max(PanelCenterFrac, 0.05f) / max(PanelScale, 0.1f); // tan(угол) на единицу xn
+	float tanHc1 = tan(CenterFOV * 0.5f * D2R);
+	float tanVc1 = tanHc1 / aspect;
+	float tanS1  = tan(SideFOV * 0.5f * D2R);
+	float ax1 = abs(xn1);
+	float sgn1 = (xn1 >= 0.0f) ? 1.0f : -1.0f;
+	float tp = (yn1 / aspect) * kx;                                                     // tan(pitch) общий
+	if (ax1 <= PanelCenterFrac)
+	{
+		float tx = xn1 * kx;
+		float2 uvc1 = float2(0.5f + 0.5f * tx / tanHc1, 0.5f - 0.5f * tp / tanVc1);
+		float inC1 = all(abs(uvc1 - 0.5f) <= 0.5f) ? 1.0f : 0.0f;
+		return lerp(float3(0.02f, 0.02f, 0.02f), SceneTextureLookup(saturate(uvc1), 14, false).rgb, inC1);
+	}
+	float hp = (1.0f - PanelCenterFrac) * 0.5f;
+	float xl = (ax1 - PanelCenterFrac - hp);                                             // -hp..hp внутри панели
+	if (abs(xl) > hp - PanelSeparator) return float3(0.0f, 0.0f, 0.0f);                 // разделитель
+	float txs = xl * kx;                                                                 // tan(угол от оси боковой камеры)
+	float2 uvs1 = float2(0.5f + 0.5f * sgn1 * txs / tanS1, 0.5f - 0.5f * tp / tanS1);
+	float inS1 = all(abs(uvs1 - 0.5f) <= 0.5f) ? 1.0f : 0.0f;
+	float3 cs1 = (sgn1 > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, saturate(uvs1), 0).rgb
+	                           : Texture2DSampleLevel(SideL, SideLSampler, saturate(uvs1), 0).rgb;
+	cs1 *= lerp(1.0f, 1.0f / max(EyeAdaptationLookup(), 1e-6f), SideExposureFix);
+	return lerp(float3(0.02f, 0.02f, 0.02f), cs1, inS1);
+}
+
 // --- экран -> (yaw, pitch), Панини ---
 float xn = UV.x * 2.0f - 1.0f;
 float yn = 1.0f - UV.y * 2.0f;

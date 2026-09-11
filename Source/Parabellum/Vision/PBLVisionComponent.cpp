@@ -19,6 +19,10 @@ static TAutoConsoleVariable<float> CVarSideYaw(TEXT("pbl.Vision.SideYaw"), -1.0f
 static TAutoConsoleVariable<float> CVarSideFOV(TEXT("pbl.Vision.SideFOV"), -1.0f, TEXT("Side capture FOV (deg), -1 = settings"));
 static TAutoConsoleVariable<int32> CVarPBLVisionDebug(TEXT("pbl.VisionDebug"), -1, TEXT("Foveal vision debug view"));
 // Живой подбор проекции из консоли; отрицательное = брать из настроек.
+static TAutoConsoleVariable<float> CVarSideBack(TEXT("pbl.Vision.SideBack"), 0.0f, TEXT("Side cameras offset backwards along view, cm"));
+static TAutoConsoleVariable<int32> CVarMode(TEXT("pbl.Vision.Mode"), -1, TEXT("0 Panini, 1 flat panels; -1 settings"));
+static TAutoConsoleVariable<float> CVarPanelFrac(TEXT("pbl.Vision.PanelFrac"), -1.0f, TEXT("Panel mode: center panel width fraction"));
+static TAutoConsoleVariable<float> CVarPanelScale(TEXT("pbl.Vision.PanelScale"), -1.0f, TEXT("Panel mode: density vs CS"));
 static TAutoConsoleVariable<float> CVarTotalFOV(TEXT("pbl.Vision.FOV"), -1.0f, TEXT("Total horizontal FOV of the composite"));
 static TAutoConsoleVariable<float> CVarPaniniD(TEXT("pbl.Vision.D"), -1.0f, TEXT("Panini parameter d"));
 static TAutoConsoleVariable<float> CVarBlurMax(TEXT("pbl.Vision.Blur"), -1.0f, TEXT("Max peripheral blur, degrees"));
@@ -121,6 +125,7 @@ bool UPBLVisionComponent::Setup(UCameraComponent* InCamera)
 	CaptureL->TextureTarget = RenderTargetL;
 	CaptureR->TextureTarget = RenderTargetR;
 
+	VisionCenterFOV = Camera->FieldOfView;
 	CompositeMID = UMaterialInstanceDynamic::Create(Mat, this);
 	CompositeMID->SetTextureParameterValue(TEXT("SideL"), RenderTargetL);
 	CompositeMID->SetTextureParameterValue(TEXT("SideR"), RenderTargetR);
@@ -139,6 +144,19 @@ bool UPBLVisionComponent::Setup(UCameraComponent* InCamera)
 void UPBLVisionComponent::ApplyEnabled(bool bEnable)
 {
 	bActive = bEnable;
+	// Выключено = честный CS (fov 90 при реальном аспекте), а не широкая 120-градусная камера покрытия.
+	if (Camera)
+	{
+		float Aspect = 16.0f / 9.0f;
+		if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
+		{
+			const FIntPoint V = GEngine->GameViewport->Viewport->GetSizeXY();
+			if (V.X > 0 && V.Y > 0) { Aspect = (float)V.X / (float)V.Y; }
+		}
+		const float OffFov = CSEquivalentHFov(GetDefault<UPBLVisionSettings>()->CSFov, Aspect);
+		Camera->SetFieldOfView(bEnable ? VisionCenterFOV : OffFov);
+		UE_LOG(LogTemp, Display, TEXT("PBL Vision: %s, camera FOV %.1f"), bEnable ? TEXT("ON") : TEXT("OFF (CS-equivalent)"), Camera->FieldOfView);
+	}
 	if (CaptureL) { CaptureL->bCaptureEveryFrame = bEnable; CaptureL->SetVisibility(bEnable); }
 	if (CaptureR) { CaptureR->bCaptureEveryFrame = bEnable; CaptureR->SetVisibility(bEnable); }
 	if (Camera && CompositeMID)
@@ -205,7 +223,15 @@ void UPBLVisionComponent::PushParameters()
 	CompositeMID->SetScalarParameterValue(TEXT("CamPitch"), CamPitch);
 	CompositeMID->SetScalarParameterValue(TEXT("SideExposureFix"), 1.0f);
 	CompositeMID->SetScalarParameterValue(TEXT("SideMip"), S->SideMip);
-	UpdateSideRotation(EffectivePitch(CamPitch));
+	const int32 CVM = CVarMode.GetValueOnGameThread();
+	const int32 Mode = CVM >= 0 ? CVM : S->Mode;
+	CompositeMID->SetScalarParameterValue(TEXT("Mode"), (float)Mode);
+	CompositeMID->SetScalarParameterValue(TEXT("PanelCenterFrac"), Pick(CVarPanelFrac, S->PanelCenterFrac));
+	CompositeMID->SetScalarParameterValue(TEXT("PanelScale"), Pick(CVarPanelScale, S->PanelScale));
+	CompositeMID->SetScalarParameterValue(TEXT("PanelSeparator"), S->PanelSeparator);
+	CompositeMID->SetScalarParameterValue(TEXT("CSHalfH"), 0.5f * CSEquivalentHFov(S->CSFov, Aspect));
+	// В режиме панелей боковые камеры жёстко в системе камеры (как три монитора), без мировой оси.
+	UpdateSideRotation(Mode == 1 ? 0.0f : EffectivePitch(CamPitch));
 	CompositeMID->SetScalarParameterValue(TEXT("PitchAlignStart"), S->PitchAlignStart);
 	CompositeMID->SetScalarParameterValue(TEXT("PitchAlignEnd"), S->PitchAlignEnd);
 	CompositeMID->SetScalarParameterValue(TEXT("BlendStart"), S->BlendStartYaw);
@@ -259,13 +285,22 @@ void UPBLVisionComponent::UpdateSideRotation(float EffectivePitchDeg)
 	const float SideYaw = Pick(CVarSideYaw, S->SideYaw);
 	if (CaptureL) { CaptureL->SetWorldRotation(QF * FRotator(0.0f, -SideYaw, 0.0f).Quaternion() * QPitch); }
 	if (CaptureR) { CaptureR->SetWorldRotation(QF * FRotator(0.0f,  SideYaw, 0.0f).Quaternion() * QPitch); }
+	// Сдвиг боковых камер назад вдоль взгляда (эксперимент пользователя). Даёт параллакс на стыках.
+	const FVector Back(-FMath::Max(CVarSideBack.GetValueOnGameThread(), 0.0f), 0.0f, 0.0f);
+	if (CaptureL) { CaptureL->SetRelativeLocation(Back); }
+	if (CaptureR) { CaptureR->SetRelativeLocation(Back); }
+}
+
+float UPBLVisionComponent::CSEquivalentHFov(float CSFov, float Aspect)
+{
+	// CS задаёт fov для 4:3: вертикаль = 2*atan(tan(fov/2)*3/4), горизонталь при аспекте = 2*atan(tan(v/2)*aspect).
+	const float HalfV = FMath::Atan(FMath::Tan(FMath::DegreesToRadians(CSFov) * 0.5f) * 0.75f);
+	return FMath::RadiansToDegrees(2.0f * FMath::Atan(FMath::Tan(HalfV) * Aspect));
 }
 
 float UPBLVisionComponent::SolvePaniniD(float TotalFOV, float CSFov, float Aspect)
 {
-	// CS задаёт fov для 4:3: вертикаль = 2*atan(tan(fov/2)*3/4), горизонталь при аспекте = 2*atan(tan(v/2)*aspect).
-	const float HalfV = FMath::Atan(FMath::Tan(FMath::DegreesToRadians(CSFov) * 0.5f) * 0.75f);
-	const float HalfH = FMath::Atan(FMath::Tan(HalfV) * Aspect);
+	const float HalfH = FMath::DegreesToRadians(CSEquivalentHFov(CSFov, Aspect)) * 0.5f;
 	const float Target = 1.0f / FMath::Tan(HalfH);          // sN: доля полуширины на tan(1 rad) в центре
 	const float E = FMath::DegreesToRadians(FMath::Clamp(TotalFOV, 90.0f, 179.0f) * 0.5f);
 	const float SinE = FMath::Sin(E), CosE = FMath::Cos(E);

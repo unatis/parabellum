@@ -38,6 +38,11 @@ protected:
 	static float EffectivePitch(float CamPitchDeg);
 	/** d Панини, при котором плотность центра равна CS с CSFov при данном аспекте и кромка = TotalFOV/2. */
 	static float SolvePaniniD(float TotalFOV, float CSFov, float Aspect);
+	/** Горизонтальный FOV прямоугольной камеры, эквивалентный CS fov (задан для 4:3) при данном аспекте. */
+	static float CSEquivalentHFov(float CSFov, float Aspect);
+
+	/** FOV центральной камеры при включённой системе (нужен запас покрытия); запоминается при Setup. */
+	float VisionCenterFOV = 120.0f;
 
 	UPROPERTY(Transient) TObjectPtr<UCameraComponent> Camera;
 	UPROPERTY(Transient) TObjectPtr<USceneCaptureComponent2D> CaptureL;

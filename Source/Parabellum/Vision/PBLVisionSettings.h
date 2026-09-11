@@ -49,6 +49,22 @@ public:
 
 	// --- Проекция Панини: x = (d+1)sin(yaw)/(d+cos(yaw)). Одна гладкая функция, без зон. ---
 
+	/** 0 - Панини (единая проекция), 1 - три плоские панели: центр CS + боковые камеры, смотрящие на SideYaw. */
+	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 0, ClampMax = 1))
+	int32 Mode = 0;
+
+	/** Режим панелей: доля ширины экрана под центральную панель. */
+	UPROPERTY(Config, EditAnywhere, Category = "Panels", meta = (ClampMin = 0.3, ClampMax = 0.95))
+	float PanelCenterFrac = 0.7f;
+
+	/** Режим панелей: масштаб плотности относительно CS (1 = как CS; меньше - шире охват, мельче картинка). */
+	UPROPERTY(Config, EditAnywhere, Category = "Panels", meta = (ClampMin = 0.3, ClampMax = 2))
+	float PanelScale = 1.0f;
+
+	/** Режим панелей: ширина тёмного разделителя между панелями, доля полуширины экрана. */
+	UPROPERTY(Config, EditAnywhere, Category = "Panels", meta = (ClampMin = 0, ClampMax = 0.05))
+	float PanelSeparator = 0.003f;
+
 	/** Полный горизонтальный FOV композита. Кромка экрана = TotalFOV/2. 180 достижимо при CSFov 90 (d=3). */
 	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 90, ClampMax = 179))
 	float TotalFOV = 160.0f;
