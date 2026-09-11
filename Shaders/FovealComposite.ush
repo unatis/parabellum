@@ -46,7 +46,7 @@ if (Mode > 0.5f)
 {
 	float xn1 = UV.x * 2.0f - 1.0f;
 	float yn1 = 1.0f - UV.y * 2.0f;
-	float kx = tan(CSHalfH * D2R) / max(PanelCenterFrac, 0.05f) / max(PanelScale, 0.1f); // tan(угол) на единицу xn
+	float kx = tan(CSHalfH * D2R) / max(PanelScale, 0.1f);   // плотность CS: tan(угол) на единицу xn (весь экран = +-CSHalfH)
 	float tanHc1 = tan(CenterFOV * 0.5f * D2R);
 	float tanVc1 = tanHc1 / aspect;
 	float tanS1  = tan(SideFOV * 0.5f * D2R);
