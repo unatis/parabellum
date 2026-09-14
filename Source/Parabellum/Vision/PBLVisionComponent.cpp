@@ -126,7 +126,8 @@ bool UPBLVisionComponent::Setup(UCameraComponent* InCamera)
 	CaptureL->TextureTarget = RenderTargetL;
 	CaptureR->TextureTarget = RenderTargetR;
 
-	VisionCenterFOV = Camera->FieldOfView;
+	PlainFOV = Camera->FieldOfView;
+	VisionCenterFOV = FMath::Max(PlainFOV, 120.0f);   // композиту нужно покрытие +-44 по вертикали
 	CompositeMID = UMaterialInstanceDynamic::Create(Mat, this);
 	CompositeMID->SetTextureParameterValue(TEXT("SideL"), RenderTargetL);
 	CompositeMID->SetTextureParameterValue(TEXT("SideR"), RenderTargetR);
@@ -145,18 +146,11 @@ bool UPBLVisionComponent::Setup(UCameraComponent* InCamera)
 void UPBLVisionComponent::ApplyEnabled(bool bEnable)
 {
 	bActive = bEnable;
-	// Выключено = честный CS (fov 90 при реальном аспекте), а не широкая 120-градусная камера покрытия.
+	// Выключено = обычная камера с FOV из настроек персонажа; включено = 120 для покрытия композита.
 	if (Camera)
 	{
-		float Aspect = 16.0f / 9.0f;
-		if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
-		{
-			const FIntPoint V = GEngine->GameViewport->Viewport->GetSizeXY();
-			if (V.X > 0 && V.Y > 0) { Aspect = (float)V.X / (float)V.Y; }
-		}
-		const float OffFov = CSEquivalentHFov(GetDefault<UPBLVisionSettings>()->CSFov, Aspect);
-		Camera->SetFieldOfView(bEnable ? VisionCenterFOV : OffFov);
-		UE_LOG(LogTemp, Display, TEXT("PBL Vision: %s, camera FOV %.1f"), bEnable ? TEXT("ON") : TEXT("OFF (CS-equivalent)"), Camera->FieldOfView);
+		Camera->SetFieldOfView(bEnable ? VisionCenterFOV : PlainFOV);
+		UE_LOG(LogTemp, Display, TEXT("PBL Vision: %s, camera FOV %.1f"), bEnable ? TEXT("ON") : TEXT("OFF"), Camera->FieldOfView);
 	}
 	if (CaptureL) { CaptureL->bCaptureEveryFrame = bEnable; CaptureL->SetVisibility(bEnable); }
 	if (CaptureR) { CaptureR->bCaptureEveryFrame = bEnable; CaptureR->SetVisibility(bEnable); }

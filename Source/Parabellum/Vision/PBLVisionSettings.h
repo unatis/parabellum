@@ -19,8 +19,9 @@ class PARABELLUM_API UPBLVisionSettings : public UDeveloperSettings
 public:
 	virtual FName GetCategoryName() const override { return TEXT("Parabellum"); }
 
+	/** По умолчанию выключено (решение 2026-09-14: обычная камера, чуть шире CS). Включается pbl.Vision 1. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vision")
-	bool bEnabled = true;
+	bool bEnabled = false;
 
 	/** Post Process Material композита. Генерируется Tools/make_vision_material.py. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vision")

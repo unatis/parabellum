@@ -41,7 +41,8 @@ protected:
 	/** Горизонтальный FOV прямоугольной камеры, эквивалентный CS fov (задан для 4:3) при данном аспекте. */
 	static float CSEquivalentHFov(float CSFov, float Aspect);
 
-	/** FOV центральной камеры при включённой системе (нужен запас покрытия); запоминается при Setup. */
+	/** FOV обычной камеры (из настройки персонажа) и FOV центра при включённой системе (нужен запас покрытия >= 120). */
+	float PlainFOV = 112.0f;
 	float VisionCenterFOV = 120.0f;
 
 	UPROPERTY(Transient) TObjectPtr<UCameraComponent> Camera;
