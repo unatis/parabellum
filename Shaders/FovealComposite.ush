@@ -92,7 +92,14 @@ float p0e = p0 * (1.0f - smoothstep(PitchAlignStart, PitchAlignEnd, abs(CamPitch
 float cP = cos(p0e), sP = sin(p0e);
 
 float ayawDeg = abs(yaw) / D2R;
-float blurDeg = BlurMaxDeg * smoothstep(BlurStartYaw, 90.0f, ayawDeg);
+// Пороги относительно текущей кромки (динамический FOV): пока обзор влезает в центральную камеру,
+// бока не подмешиваются вовсе (k=0) и картинка - чистый резкий центр; при раскрытии бока появляются плавно.
+float edgeDeg   = TotalFOV * 0.5f;
+float centerHalf = CenterFOV * 0.5f;
+float k = smoothstep(centerHalf - 12.0f, centerHalf + 4.0f, edgeDeg);
+float bEnd   = min(BlendEnd, centerHalf - 5.0f);
+float bStart = min(BlendStart, bEnd - 15.0f);
+float blurDeg = BlurMaxDeg * smoothstep(edgeDeg - 20.0f, edgeDeg, ayawDeg) * k;
 
 // --- сбор цвета: центральный тап + 8 по кольцу радиусом blurDeg (в градусах угла) ---
 float3 acc = 0.0f;
@@ -110,7 +117,7 @@ for (int i = 0; i < 9; i++)
 	// в систему камеры (камера смотрит вверх на p0e внутри системы проекции)
 	float3 d = float3(df.x, df.y * cP - df.z * sP, df.y * sP + df.z * cP);
 
-	float wSide = smoothstep(BlendStart, BlendEnd, abs(yw) / D2R);
+	float wSide = smoothstep(bStart, bEnd, abs(yw) / D2R) * k;
 
 	// центр (ректилинейно в центральную камеру)
 	float2 c = float2(d.x, d.y) / max(d.z, 1e-4f) / float2(tanHc, tanVc);
@@ -132,7 +139,7 @@ for (int i = 0; i < 9; i++)
 	// 0.5 у шва (стык остаётся резким) -> SideMip у кромки экрана.
 	// по полному углу от направления взгляда: вниз/вверх бока тоже периферия
 	float offAxisDeg = acos(clamp(d.z, -1.0f, 1.0f)) / D2R;
-	float mip = lerp(0.5f, SideMip, smoothstep(BlendStart, BlendEnd + 10.0f, offAxisDeg));   // полный мип уже к ~60 град
+	float mip = lerp(0.5f, SideMip, smoothstep(edgeDeg - 30.0f, edgeDeg, offAxisDeg)) * k;
 	float3 colS = (sgn > 0.0f) ? Texture2DSampleLevel(SideR, SideRSampler, uvs, mip).rgb
 	                           : Texture2DSampleLevel(SideL, SideLSampler, uvs, mip).rgb;
 	// Бока захвачены как FinalColorHDR (с экспозицией и TAA), центр здесь ещё до экспозиции - возвращаем.
