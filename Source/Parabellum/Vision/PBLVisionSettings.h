@@ -75,9 +75,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 0, ClampMax = 179))
 	float RestFOV = 0.0f;
 
+	/** Ниже этой угловой скорости (град/с) обзор не раскрывается вовсе - микродвижения прицела не считаются поворотом. */
+	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 0, ClampMax = 500))
+	float TurnSpeedMin = 45.0f;
+
 	/** Угловая скорость взгляда (град/с), при которой обзор раскрыт полностью до TotalFOV. */
 	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 10, ClampMax = 2000))
-	float TurnSpeedFull = 150.0f;
+	float TurnSpeedFull = 240.0f;
 
 	/** Скорость раскрытия (FInterpTo). Быстро - периферия включается сразу при повороте. */
 	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 0.1, ClampMax = 50))
@@ -85,7 +89,7 @@ public:
 
 	/** Скорость закрытия. Медленнее - внимание "догорает" после остановки. */
 	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 0.1, ClampMax = 50))
-	float CloseSpeed = 2.5f;
+	float CloseSpeed = 1.2f;
 
 	/** Полный горизонтальный FOV композита. Кромка экрана = TotalFOV/2. 180 достижимо при CSFov 90 (d=3). */
 	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 90, ClampMax = 179))

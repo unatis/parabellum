@@ -338,7 +338,7 @@ float UPBLVisionComponent::UpdateDynamicFOV(float DeltaTime, float TargetMaxFOV,
 	LastCamRot = Rot;
 	bHasLastCamRot = true;
 
-	const float Open = FMath::Clamp(SpeedDeg / FMath::Max(S->TurnSpeedFull, 1.0f), 0.0f, 1.0f);
+	const float Open = FMath::Clamp((SpeedDeg - S->TurnSpeedMin) / FMath::Max(S->TurnSpeedFull - S->TurnSpeedMin, 1.0f), 0.0f, 1.0f);
 	const float Target = FMath::Lerp(RestFOV, FMath::Max(TargetMaxFOV, RestFOV), Open);
 	if (DynamicFOV <= 0.0f) { DynamicFOV = RestFOV; }
 	const float Speed = Target > DynamicFOV ? S->OpenSpeed : S->CloseSpeed;
