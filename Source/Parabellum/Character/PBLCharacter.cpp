@@ -33,6 +33,11 @@ void APBLCharacter::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
 	ApplyMovementSettings();
+	// FOV ставим до BeginPlay компонентов: UPBLVisionComponent запоминает его как FOV обычной камеры.
+	if (FirstPersonCamera)
+	{
+		FirstPersonCamera->SetFieldOfView(CenterFieldOfView);
+	}
 }
 
 void APBLCharacter::PossessedBy(AController* NewController)
@@ -46,10 +51,6 @@ void APBLCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (FirstPersonCamera)
-	{
-		FirstPersonCamera->SetFieldOfView(CenterFieldOfView);
-	}
 	UpdateCameraHeight();
 	CameraCurrentRelZ = CameraTargetRelZ;
 	if (FirstPersonCamera)
