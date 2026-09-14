@@ -41,7 +41,7 @@ public:
 
 	/** Мип боковых RT у кромки экрана (у шва всегда 0.5): периферийное размытие и подавление алиасинга захвата. */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 0, ClampMax = 4))
-	float SideMip = 3.0f;
+	float SideMip = 1.0f;
 
 	/** Сторона бокового RT = min(ширина, высота экрана) * это. В Панини шов лежит в зоне почти полной плотности - нужно 1.0. */
 	UPROPERTY(Config, EditAnywhere, Category = "Side Captures", meta = (ClampMin = 0.1, ClampMax = 1.0))
@@ -93,7 +93,7 @@ public:
 
 	/** Полный горизонтальный FOV композита. Кромка экрана = TotalFOV/2. 180 достижимо при CSFov 90 (d=3). */
 	UPROPERTY(Config, EditAnywhere, Category = "Projection", meta = (ClampMin = 90, ClampMax = 179))
-	float TotalFOV = 160.0f;
+	float TotalFOV = 140.0f;
 
 	/**
 	 * Плотность пикселей в центре = как у CS с этим fov (CS-fov задаётся для 4:3, на 16:9 90 -> 106x74).
@@ -130,7 +130,7 @@ public:
 
 	/** Радиус размытия на краю экрана (90 градусов), в градусах угла. Едва заметное - основной сигнал периферии само сжатие. */
 	UPROPERTY(Config, EditAnywhere, Category = "Blur", meta = (ClampMin = 0, ClampMax = 10))
-	float BlurMaxDeg = 0.3f;
+	float BlurMaxDeg = 0.0f;
 
 	/** 0 - композит; 1/2 - левый/правый RT сырой; 3 - только центр; 4 - композит с тонировкой боков (швы). */
 	UPROPERTY(Config, EditAnywhere, Category = "Debug", meta = (ClampMin = 0, ClampMax = 5))
