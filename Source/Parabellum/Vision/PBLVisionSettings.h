@@ -69,7 +69,7 @@ public:
 
 	/** Включить динамическую периферию. Плотность центра фиксирована, поэтому прицел не меняет масштаб. */
 	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV")
-	bool bDynamicFOV = true;
+	bool bDynamicFOV = false;   // проверено 2026-09-14: при повороте края уплывают наружу, обзор субъективно сужается. Оставлено опцией
 
 	/** FOV в покое. 0 = ровно CS-эквивалент (тогда Панини вырождается в прямоугольную камеру). */
 	UPROPERTY(Config, EditAnywhere, Category = "Dynamic FOV", meta = (ClampMin = 0, ClampMax = 179))
