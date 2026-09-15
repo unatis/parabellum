@@ -6,6 +6,7 @@
 
 class UCameraComponent;
 class UPBLVisionComponent;
+class APBLWeapon;
 class UInputAction;
 struct FInputActionValue;
 
@@ -31,8 +32,13 @@ public:
 	APBLCharacter();
 
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
+	APBLWeapon* GetWeapon() const { return Weapon; }
+
+	/** Отдача: подброс контроллера. Вызывает оружие локально у владельца. */
+	void ApplyRecoil(float PitchUp, float YawDelta);
 
 	virtual void PostInitializeComponents() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -47,6 +53,15 @@ protected:
 	void Input_Look(const FInputActionValue& Value);
 	void Input_CrouchStart();
 	void Input_CrouchStop();
+	void Input_FireStart();
+	void Input_FireStop();
+	void Input_Reload();
+
+	/** Сервер выдаёт оружие при появлении. */
+	void SpawnDefaultWeapon();
+
+	UFUNCTION()
+	void OnRep_Weapon();
 
 	/** Переносит UPBLMovementSettings в капсулу и CharacterMovementComponent. */
 	void ApplyMovementSettings();
@@ -91,4 +106,18 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
 	TSoftObjectPtr<UInputAction> CrouchAction;
+
+	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
+	TSoftObjectPtr<UInputAction> FireAction;
+
+	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
+	TSoftObjectPtr<UInputAction> ReloadAction;
+
+	/** Класс стартового оружия (Config, чтобы не плодить Blueprint). */
+	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Weapon")
+	TSoftClassPtr<APBLWeapon> DefaultWeaponClass;
+
+	/** Текущее оружие. Реплицируется, чтобы у чужих клиентов оно тоже существовало (Э5+: показать в руках). */
+	UPROPERTY(ReplicatedUsing = OnRep_Weapon, VisibleInstanceOnly, Category = "Parabellum|Weapon")
+	TObjectPtr<APBLWeapon> Weapon;
 };

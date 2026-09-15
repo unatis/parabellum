@@ -2,6 +2,7 @@
 
 #include "Character/PBLCharacter.h"
 #include "Player/PBLPlayerController.h"
+#include "Player/PBLHUD.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "Misc/CommandLine.h"
@@ -11,6 +12,7 @@ APBLGameMode::APBLGameMode()
 {
 	DefaultPawnClass = APBLCharacter::StaticClass();
 	PlayerControllerClass = APBLPlayerController::StaticClass();
+	HUDClass = APBLHUD::StaticClass();
 }
 
 AActor* APBLGameMode::ChoosePlayerStart_Implementation(AController* Player)

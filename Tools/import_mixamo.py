@@ -72,6 +72,10 @@ def import_anims(skeleton):
     files = sorted(glob.glob(os.path.join(ANIM_DIR, "**", "*.fbx"), recursive=True))
     log(f"animations: {len(files)} files")
     for f in files:
+        name = os.path.splitext(os.path.basename(f))[0]
+        safe = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in name)
+        if eal.does_asset_exist(f"{DEST}/Anims/{safe}") and os.environ.get("PBL_REIMPORT_ANIMS", "0") != "1":
+            continue
         ui = unreal.FbxImportUI()
         ui.set_editor_property("import_mesh", False)
         ui.set_editor_property("import_as_skeletal", True)
@@ -86,7 +90,13 @@ def import_anims(skeleton):
 def main():
     if not os.path.isfile(CHAR_FBX):
         raise RuntimeError(f"no file {CHAR_FBX}")
-    skeleton = import_character()
+    # Повторный запуск: персонаж уже импортирован - берём его скелет, импортируем только новые анимации.
+    existing = f"{DEST}/Mesh/{os.path.splitext(os.path.basename(CHAR_FBX))[0]}_Skeleton"
+    if eal.does_asset_exist(existing) and os.environ.get("PBL_REIMPORT_CHAR", "0") != "1":
+        skeleton = eal.load_asset(existing)
+        log(f"skeleton exists, character import skipped: {existing}")
+    else:
+        skeleton = import_character()
     if os.path.isdir(ANIM_DIR):
         import_anims(skeleton)
     log("DONE")

@@ -8,6 +8,9 @@
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "Vision/PBLVisionComponent.h"
+#include "Weapons/PBLWeapon.h"
+#include "Net/UnrealNetwork.h"
+#include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 
 // Живой подбор чувствительности из консоли (~): pbl.Sens 1.5 ; 0 = брать из настроек.
@@ -40,9 +43,39 @@ void APBLCharacter::PostInitializeComponents()
 	}
 }
 
+void APBLCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(APBLCharacter, Weapon);
+}
+
+void APBLCharacter::SpawnDefaultWeapon()
+{
+	if (!HasAuthority() || Weapon) { return; }
+	UClass* Cls = DefaultWeaponClass.LoadSynchronous();
+	if (!Cls) { UE_LOG(LogTemp, Warning, TEXT("PBL: DefaultWeaponClass не задан")); return; }
+	FActorSpawnParameters P;
+	P.Owner = this;
+	P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Weapon = GetWorld()->SpawnActor<APBLWeapon>(Cls, GetActorTransform(), P);
+	if (Weapon) { Weapon->AttachToOwnerCamera(this); }
+}
+
+void APBLCharacter::OnRep_Weapon()
+{
+	if (Weapon) { Weapon->AttachToOwnerCamera(this); }
+}
+
+void APBLCharacter::ApplyRecoil(float PitchUp, float YawDelta)
+{
+	AddControllerPitchInput(PitchUp);
+	AddControllerYawInput(YawDelta);
+}
+
 void APBLCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
+	SpawnDefaultWeapon();
 	UE_LOG(LogTemp, Display, TEXT("PBL: Character %s possessed by %s at %s"),
 		*GetName(), NewController ? *NewController->GetName() : TEXT("null"), *GetActorLocation().ToCompactString());
 }
@@ -155,6 +188,15 @@ void APBLCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		Input->BindAction(IA, ETriggerEvent::Completed, this, &APBLCharacter::Input_CrouchStop);
 		++Bound;
 	}
+	if (UInputAction* IA = FireAction.LoadSynchronous())
+	{
+		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_FireStart);
+		Input->BindAction(IA, ETriggerEvent::Completed, this, &APBLCharacter::Input_FireStop);
+	}
+	if (UInputAction* IA = ReloadAction.LoadSynchronous())
+	{
+		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_Reload);
+	}
 
 	UE_LOG(LogTemp, Display, TEXT("PBL: input bound %d/4 actions (Move='%s' Look='%s' Jump='%s' Crouch='%s')"),
 		Bound, *MoveAction.ToString(), *LookAction.ToString(), *JumpAction.ToString(), *CrouchAction.ToString());
@@ -201,4 +243,19 @@ void APBLCharacter::Input_CrouchStart()
 void APBLCharacter::Input_CrouchStop()
 {
 	UnCrouch();
+}
+
+void APBLCharacter::Input_FireStart()
+{
+	if (Weapon) { Weapon->StartFire(); }
+}
+
+void APBLCharacter::Input_FireStop()
+{
+	if (Weapon) { Weapon->StopFire(); }
+}
+
+void APBLCharacter::Input_Reload()
+{
+	if (Weapon) { Weapon->StartReload(); }
 }

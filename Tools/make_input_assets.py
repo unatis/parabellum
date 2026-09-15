@@ -19,6 +19,8 @@ ACTIONS = {
     "IA_Look":   unreal.InputActionValueType.AXIS2D,   # сырая дельта мыши, чувствительность в C++
     "IA_Jump":   unreal.InputActionValueType.BOOLEAN,
     "IA_Crouch": unreal.InputActionValueType.BOOLEAN,
+    "IA_Fire":   unreal.InputActionValueType.BOOLEAN,
+    "IA_Reload": unreal.InputActionValueType.BOOLEAN,
 }
 
 # (action, key, [модификаторы]) — модификатор = (класс, {свойство: значение})
@@ -33,6 +35,8 @@ MAPPINGS = [
     ("IA_Look", "Mouse2D", []),
     ("IA_Jump", "SpaceBar", []),
     ("IA_Crouch", "LeftControl", []),
+    ("IA_Fire", "LeftMouseButton", []),
+    ("IA_Reload", "R", []),
 ]
 
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
