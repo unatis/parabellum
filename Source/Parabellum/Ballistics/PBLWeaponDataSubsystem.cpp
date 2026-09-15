@@ -67,6 +67,8 @@ void UPBLWeaponDataSubsystem::Reload()
 			C.BC = FCString::Atof(*R.FindRef(TEXT("BC")));
 			C.Construction = FName(*R.FindRef(TEXT("Construction")));
 			C.Length_m = Num(R, TEXT("Length_mm"), 15.0f) / 1000.0f;
+			C.PowderMass_kg = Num(R, TEXT("PowderMass_g"), 0.4f) / 1000.0f;
+			C.GasVelocity_mps = Num(R, TEXT("GasVelocity_mps"), 1430.0f);
 			C.MediumCd = Num(R, TEXT("MediumCd"), 0.2f);
 			C.YawOnsetDepth_m = Num(R, TEXT("YawOnsetDepth_mm")) / 1000.0f;
 			C.YawedCd = Num(R, TEXT("YawedCd"), 0.7f);
@@ -96,6 +98,9 @@ void UPBLWeaponDataSubsystem::Reload()
 			F.SightHeight_m = FCString::Atof(*R.FindRef(TEXT("SightHeight_mm"))) / 1000.0f;
 			F.ZeroRange_m = FCString::Atof(*R.FindRef(TEXT("ZeroRange_m")));
 			F.Dispersion_MOA = FCString::Atof(*R.FindRef(TEXT("Dispersion_MOA")));
+			{ const FString H = R.FindRef(TEXT("Hold")); if (!H.IsEmpty()) { F.Hold = FName(*H); } }
+			F.BoreAbovePivot_m = Num(R, TEXT("BoreAbovePivot_mm"), 75.0f) / 1000.0f;
+			F.CoMToPivot_m = Num(R, TEXT("CoMToPivot_mm"), 120.0f) / 1000.0f;
 			if (!F.Name.IsNone()) { Firearms.Add(F.Name, F); }
 		}
 	}

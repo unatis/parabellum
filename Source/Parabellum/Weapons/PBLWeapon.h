@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Ballistics/PBLBallisticsTypes.h"
 #include "Weapons/PBLProjectile.h"
+#include "Ballistics/PBLRecoil.h"
 #include "PBLWeapon.generated.h"
 
 class USkeletalMeshComponent;
@@ -58,6 +59,9 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
+	/** Отдача из физики (E10.5): кик пружины хвата при выстреле. */
+	void ApplyPhysicsRecoil();
 
 	/** Локальный выстрел владельца: проверка, эффекты, RPC на сервер. */
 	void FireOnce();
@@ -133,6 +137,10 @@ protected:
 	FPBLCartridgeData Cartridge;
 	bool bHasData = false;
 	float ZeroAngle_rad = 0.0f;
+	/** Отдача (E10.5): статические величины выстрела и состояние пружины хвата (только у владельца). */
+	FPBLRecoilInfo RecoilInfo;
+	FPBLRecoilState Recoil;
+	bool bRecoilTickActive = false;
 	FPBLShotReport LastReport;
 	float LastReportTime = -1000.0f;
 
@@ -177,7 +185,7 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float Range = 8192.0f;
 	/** Базовый разброс, градусы (полуугол). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float SpreadDeg = 0.6f;
-	/** Отдача: подброс камеры вверх за выстрел, градусы; и скорость возврата. */
+	/** Отдача-заглушка без данных CSV (hitscan): подброс камеры за выстрел, градусы. С данными работает PBLRecoil. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float RecoilPitch = 1.4f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float RecoilYawRandom = 0.35f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float DecalSize = 10.0f;

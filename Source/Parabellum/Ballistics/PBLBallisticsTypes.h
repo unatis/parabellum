@@ -25,6 +25,9 @@ struct FPBLCartridgeData
 	UPROPERTY() float BC = 0.15f;
 	UPROPERTY() FName Construction = TEXT("FMJ");
 	UPROPERTY() float Length_m = 0.015f;
+	/** Масса пороха, кг, и скорость истечения газов, м/с (SAAMI: 4700 fps = 1430 м/с) - импульс отдачи. */
+	UPROPERTY() float PowderMass_kg = 0.0004f;
+	UPROPERTY() float GasVelocity_mps = 1430.0f;
 
 	// --- Терминальная баллистика в плотной среде (модель Понселе, см. PBLPenetration.h) ---
 	/** Коэффициент сопротивления носом вперёд относительно площади сечения (в среде, не в воздухе). */
@@ -61,6 +64,12 @@ struct FPBLFirearmData
 	UPROPERTY() float ZeroRange_m = 25.0f;
 	/** Механическое рассеивание, угловые минуты (полный угол группы). */
 	UPROPERTY() float Dispersion_MOA = 4.0f;
+	/** Хват: Pistol (шарнир - кисти) или Rifle (шарнир - плечо). Параметры стрелка - UPBLRecoilSettings. */
+	UPROPERTY() FName Hold = TEXT("Pistol");
+	/** Ось канала ствола над шарниром хвата, м - плечо момента отдачи (подброс дула). */
+	UPROPERTY() float BoreAbovePivot_m = 0.075f;
+	/** Центр масс оружия от шарнира, м - для момента инерции. */
+	UPROPERTY() float CoMToPivot_m = 0.12f;
 };
 
 /** Материал среды (Content/Data/Materials.csv). Пока одна модель - Понселе для мягких сред (гель, вода, ткани). */

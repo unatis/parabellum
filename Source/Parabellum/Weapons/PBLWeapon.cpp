@@ -9,6 +9,8 @@
 #include "Engine/StaticMesh.h"
 #include "Player/PBLHUD.h"
 #include "Ballistics/PBLBallistics.h"
+#include "Ballistics/PBLRecoil.h"
+#include "Ballistics/PBLRecoilSettings.h"
 #include "Ballistics/PBLWeaponDataSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Misc/FileHelper.h"
@@ -27,7 +29,8 @@
 
 APBLWeapon::APBLWeapon()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;   // включается на время работы пружины отдачи
 	bReplicates = true;
 	SetReplicatingMovement(false);   // положение задаёт привязка к камере владельца, не сеть
 
@@ -100,6 +103,10 @@ void APBLWeapon::LoadWeaponData()
 	SpreadDeg = Firearm.Dispersion_MOA / 60.0f * 0.5f;
 	const float V0 = PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m);
 	ZeroAngle_rad = PBLBallistics::SolveZeroAngle(Cartridge, FPBLAtmosphere(), V0, Firearm.SightHeight_m, Firearm.ZeroRange_m);
+	RecoilInfo = PBLRecoil::Compute(Cartridge, Firearm, V0, UPBLRecoilSettings::Get().Hold(Firearm.Hold));
+	UE_LOG(LogTemp, Display, TEXT("PBL Weapon: recoil impulse %.2f N*s, free %.2f m/s / %.2f J, muzzle rise peak %.2f deg at %.0f ms, residual %.2f deg"),
+		RecoilInfo.Impulse_Ns, RecoilInfo.FreeVelocity_mps, RecoilInfo.FreeEnergy_J, FMath::RadiansToDegrees(RecoilInfo.PeakAngle_rad), RecoilInfo.TimeToPeak_s * 1000.0f,
+		FMath::RadiansToDegrees(RecoilInfo.PeakAngle_rad * UPBLRecoilSettings::Get().Hold(Firearm.Hold).ResidualFraction));
 	UE_LOG(LogTemp, Display, TEXT("PBL Weapon: %s / %s: V0 %.1f m/s, mag %d, interval %.3f s, spread %.2f deg, zero %.0f m -> angle %.2f MOA"),
 		*Firearm.Name.ToString(), *Cartridge.Name.ToString(), V0, MagSize, FireInterval, SpreadDeg, Firearm.ZeroRange_m, FMath::RadiansToDegrees(ZeroAngle_rad) * 60.0f);
 }
@@ -144,6 +151,34 @@ void APBLWeapon::AttachToOwnerCamera(APBLCharacter* NewOwner)
 	}
 }
 
+// ---------------- Отдача из физики (E10.5) ----------------
+
+void APBLWeapon::ApplyPhysicsRecoil()
+{
+	PBLRecoil::Kick(Recoil, RecoilInfo, UPBLRecoilSettings::Get().Hold(Firearm.Hold), FMath::FRandRange(-1.0f, 1.0f));
+	SetActorTickEnabled(true);
+}
+
+void APBLWeapon::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (!OwnerCharacter || !bHasData) { SetActorTickEnabled(false); return; }
+	const UPBLRecoilSettings& RS = UPBLRecoilSettings::Get();
+	float DPitch = 0.0f, DYaw = 0.0f;
+	PBLRecoil::Step(Recoil, RecoilInfo, RS.Hold(Firearm.Hold), DeltaSeconds, DPitch, DYaw);
+	// Линия прицеливания следует углу хвата: приращение уходит в управляющий поворот, мышь игрока складывается с ним.
+	OwnerCharacter->ApplyRecoil(FMath::RadiansToDegrees(DPitch), FMath::RadiansToDegrees(DYaw));
+	// Визуально оружие откатывается назад и задирается сильнее камеры.
+	SetActorRelativeLocation(ViewOffset - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f));
+	SetActorRelativeRotation(ViewRotation + FRotator(FMath::RadiansToDegrees(Recoil.Pitch - Recoil.PitchRest) * RS.VisualPitchScale, 0.0f, 0.0f));
+	if (!Recoil.IsActive())
+	{
+		SetActorRelativeLocation(ViewOffset);
+		SetActorRelativeRotation(ViewRotation);
+		SetActorTickEnabled(false);
+	}
+}
+
 // ---------------- Стрельба ----------------
 
 void APBLWeapon::StartFire()
@@ -181,7 +216,8 @@ void APBLWeapon::FireOnce()
 	// Мгновенная локальная реакция (как в CS), сервер догонит.
 	PlayLocalFireFX();
 	PlayMuzzleFX();
-	OwnerCharacter->ApplyRecoil(RecoilPitch, FMath::RandRange(-RecoilYawRandom, RecoilYawRandom));
+	if (bHasData && UPBLRecoilSettings::Get().bPhysicsRecoil) { ApplyPhysicsRecoil(); }
+	else { OwnerCharacter->ApplyRecoil(RecoilPitch, FMath::RandRange(-RecoilYawRandom, RecoilYawRandom)); }
 	if (!HasAuthority())
 	{
 		AmmoInMag = FMath::Max(AmmoInMag - 1, 0);  // предсказание для HUD

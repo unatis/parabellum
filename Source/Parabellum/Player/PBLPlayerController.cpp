@@ -136,7 +136,8 @@ void APBLPlayerController::SetupAutoScreenshot()
 			FTimerHandle H;
 			GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this, ApplyLook]()
 			{
-				ApplyLook();   // перед каждым выстрелом возвращаем прицел - отдача предыдущего не копится
+				// Перед каждым выстрелом возвращаем прицел (отдача не копится), если не задан -PBLAutoFireNoReaim (проверка отдачи).
+				if (!FParse::Param(FCommandLine::Get(), TEXT("PBLAutoFireNoReaim"))) { ApplyLook(); }
 				if (APBLCharacter* C = Cast<APBLCharacter>(GetPawn())) { if (C->GetWeapon()) { C->GetWeapon()->StartFire(); } }
 			}), Start + i * 1.0f, false);
 		}
