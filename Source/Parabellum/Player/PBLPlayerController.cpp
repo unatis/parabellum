@@ -5,6 +5,8 @@
 #include "TimerManager.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
+#include "Character/PBLCharacter.h"
+#include "Weapons/PBLWeapon.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -107,6 +109,34 @@ void APBLPlayerController::SetupAutoScreenshot()
 	const bool bHasPitch = FParse::Value(FCommandLine::Get(), TEXT("PBLLookPitch="), Pitch);
 
 	UE_LOG(LogTemp, Display, TEXT("PBL: auto screenshot '%s' in %.1f s"), *Name, AfterSeconds);
+
+	// Взгляд выставляем сразу (через 1 с, когда пешка захвачена), чтобы автострельба шла в нужную сторону;
+	// перед снимком повторим - отдача могла увести.
+	auto ApplyLook = [this, Yaw, Pitch, bHasYaw, bHasPitch]()
+	{
+		if (!bHasYaw && !bHasPitch) { return; }
+		FRotator R = GetControlRotation();
+		if (bHasYaw) { R.Yaw = Yaw; }
+		if (bHasPitch) { R.Pitch = Pitch; }
+		SetControlRotation(R);
+	};
+	FTimerHandle LookEarly;
+	GetWorldTimerManager().SetTimer(LookEarly, FTimerDelegate::CreateWeakLambda(this, ApplyLook), 1.0f, false);
+
+	// -PBLAutoFire=N: N выстрелов по одному в секунду, начиная за 6 с до снимка (самопроверка стрельбы).
+	int32 AutoFire = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("PBLAutoFire="), AutoFire) && AutoFire > 0)
+	{
+		const float Start = FMath::Max(AfterSeconds - 6.0f, 1.0f);
+		for (int32 i = 0; i < AutoFire; ++i)
+		{
+			FTimerHandle H;
+			GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				if (APBLCharacter* C = Cast<APBLCharacter>(GetPawn())) { if (C->GetWeapon()) { C->GetWeapon()->StartFire(); } }
+			}), Start + i * 1.0f, false);
+		}
+	}
 	GetWorldTimerManager().SetTimer(ScreenshotHandle, FTimerDelegate::CreateWeakLambda(this, [this, Name, Yaw, Pitch, bHasYaw, bHasPitch]()
 	{
 		if (bHasYaw || bHasPitch)

@@ -4,6 +4,7 @@
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "Weapons/PBLWeapon.h"
+#include "Player/PBLPlayerState.h"
 
 void APBLHUD::DrawHUD()
 {
@@ -27,5 +28,10 @@ void APBLHUD::DrawHUD()
 	{
 		const FString Ammo = W->IsReloading() ? TEXT("RELOAD") : FString::Printf(TEXT("%d / %d"), W->GetAmmoInMag(), W->GetMagSize());
 		DrawText(Ammo, FLinearColor::White, Canvas->ClipX - 140.0f, Canvas->ClipY - 60.0f, GEngine->GetLargeFont(), 1.5f);
+	}
+	if (const APBLPlayerState* PS = GetOwningPlayerController() ? GetOwningPlayerController()->GetPlayerState<APBLPlayerState>() : nullptr)
+	{
+		const FString Score = FString::Printf(TEXT("HITS %d   HS %d   KILLS %d"), PS->Hits, PS->Headshots, PS->Kills);
+		DrawText(Score, FLinearColor(0.9f, 0.9f, 0.9f, 0.8f), 30.0f, Canvas->ClipY - 60.0f, GEngine->GetLargeFont(), 1.2f);
 	}
 }

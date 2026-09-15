@@ -101,7 +101,6 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float FireInterval = 0.15f;   // Glock ~400 rpm
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float ReloadTime = 2.2f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float Damage = 28.0f;
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float HeadshotMultiplier = 4.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float Range = 8192.0f;
 	/** Базовый разброс, градусы (полуугол). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float SpreadDeg = 0.6f;

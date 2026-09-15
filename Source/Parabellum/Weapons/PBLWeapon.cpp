@@ -116,17 +116,17 @@ void APBLWeapon::Server_Fire_Implementation(FVector_NetQuantize Origin, FVector_
 	if (OwnerCharacter) { Params.AddIgnoredActor(OwnerCharacter); }
 	const FVector End = Origin + Dir * Range;
 	const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Origin, End, ECC_Visibility, Params);
+	UE_LOG(LogTemp, Display, TEXT("PBL: shot from %s dir %s -> %s actor=%s comp=%s dist=%.0f bone=%s"),
+		*Origin.ToCompactString(), *Dir.ToCompactString(), bHit ? TEXT("HIT") : TEXT("miss"),
+		bHit ? *GetNameSafe(Hit.GetActor()) : TEXT("-"), bHit ? *GetNameSafe(Hit.GetComponent()) : TEXT("-"),
+		bHit ? Hit.Distance : 0.0f, *Hit.BoneName.ToString());
 	if (!bHit) { return; }
 
-	const bool bCharacter = Hit.GetActor() && Hit.GetActor()->IsA<APawn>();
-	float Dmg = Damage;
-	if (Hit.BoneName != NAME_None && Hit.BoneName.ToString().Contains(TEXT("Head"), ESearchCase::IgnoreCase))
-	{
-		Dmg *= HeadshotMultiplier;
-	}
+	// Множитель за голову считает получатель (у него хитбоксы) - оружие шлёт базовый урон.
+	const bool bCharacter = Hit.GetComponent() && Hit.GetComponent()->GetCollisionObjectType() == ECC_Pawn;
 	if (Hit.GetActor())
 	{
-		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), Dmg, Dir, Hit, OwnerCharacter ? OwnerCharacter->GetController() : nullptr, this, nullptr);
+		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), Damage, Dir, Hit, OwnerCharacter ? OwnerCharacter->GetController() : nullptr, this, nullptr);
 	}
 	Multicast_HitFX(Hit.ImpactPoint, Hit.ImpactNormal, bCharacter);
 }
