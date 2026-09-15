@@ -22,6 +22,13 @@ ROOTS = [
     "/Game/Audio/Sounds/Weapons/Pistol/Weapons_Pistol_ClipIn_01",
     "/Game/Audio/Sounds/Weapons/Pistol/Weapons_Pistol_ClipOut_01",
     "/Game/Audio/Sounds/Weapons/Pistol/Weapons_Pistol_Slide_01",
+    # попадания / хит-маркер (полировка Э4.5)
+    "/Game/Audio/Sounds/Impacts/Lyra_ImpactPlaster_01",
+    "/Game/Audio/Sounds/Impacts/Lyra_ImpactPlaster_02",
+    "/Game/Audio/Sounds/Impacts/Lyra_Plyr_BulletImpact_01",
+    "/Game/Audio/Sounds/Impacts/Lyra_ImpactHeadshot_01",
+    "/Game/Audio/Sounds/Impacts/Lyra_EnemyKilled_01",
+    "/Game/Audio/Sounds/WhizBys/Lyra_BulletIn_Close_01",
 ]
 SKIP_PREFIXES = ("GA_", "GE_", "ABP_", "BP_", "B_", "AM_", "DA_", "IA_", "IMC_", "W_", "MSS_")
 SRC_CONTENT = os.environ["PBL_LYRA_CONTENT"]

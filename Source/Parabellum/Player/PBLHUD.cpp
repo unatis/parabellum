@@ -22,6 +22,17 @@ void APBLHUD::DrawHUD()
 	DrawRect(CrosshairColor, CX - T * 0.5f, CY - G - L, T, L);
 	DrawRect(CrosshairColor, CX - T * 0.5f, CY + G,     T, L);
 
+	// Хит-маркер: X из четырёх диагональных штрихов
+	if (GetWorld() && GetWorld()->GetTimeSeconds() < HitMarkerUntil)
+	{
+		const FLinearColor HC = bHitMarkerHead ? HitMarkerHeadColor : HitMarkerColor;
+		const float S0 = G + 3.0f, S1 = G + 3.0f + HitMarkerSize;
+		DrawLine(CX - S0, CY - S0, CX - S1, CY - S1, HC, T);
+		DrawLine(CX + S0, CY - S0, CX + S1, CY - S1, HC, T);
+		DrawLine(CX - S0, CY + S0, CX - S1, CY + S1, HC, T);
+		DrawLine(CX + S0, CY + S0, CX + S1, CY + S1, HC, T);
+	}
+
 	const APBLCharacter* C = Cast<APBLCharacter>(GetOwningPawn());
 	const APBLWeapon* W = C ? C->GetWeapon() : nullptr;
 	if (W && GEngine && GEngine->GetLargeFont())
@@ -34,4 +45,10 @@ void APBLHUD::DrawHUD()
 		const FString Score = FString::Printf(TEXT("HITS %d   HS %d   KILLS %d"), PS->Hits, PS->Headshots, PS->Kills);
 		DrawText(Score, FLinearColor(0.9f, 0.9f, 0.9f, 0.8f), 30.0f, Canvas->ClipY - 60.0f, GEngine->GetLargeFont(), 1.2f);
 	}
+}
+
+void APBLHUD::ShowHitMarker(bool bHead, bool bKill)
+{
+	HitMarkerUntil = GetWorld()->GetTimeSeconds() + (bKill ? HitMarkerTime * 2.0f : HitMarkerTime);
+	bHitMarkerHead = bHead || bKill;
 }

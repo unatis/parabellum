@@ -16,9 +16,20 @@ class PARABELLUM_API APBLHUD : public AHUD
 public:
 	virtual void DrawHUD() override;
 
+	/** Хит-маркер: четыре диагональных штриха вокруг прицела на HitMarkerTime секунд. */
+	void ShowHitMarker(bool bHead, bool bKill);
+
 protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Crosshair") float CrosshairGap = 4.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Crosshair") float CrosshairLength = 7.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Crosshair") float CrosshairThickness = 2.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Crosshair") FLinearColor CrosshairColor = FLinearColor(0.2f, 1.0f, 0.2f, 0.9f);
+
+	UPROPERTY(Config, EditDefaultsOnly, Category = "HitMarker") float HitMarkerTime = 0.12f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "HitMarker") float HitMarkerSize = 9.0f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "HitMarker") FLinearColor HitMarkerColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.95f);
+	UPROPERTY(Config, EditDefaultsOnly, Category = "HitMarker") FLinearColor HitMarkerHeadColor = FLinearColor(1.0f, 0.25f, 0.2f, 1.0f);
+
+	float HitMarkerUntil = -1.0f;
+	bool bHitMarkerHead = false;
 };

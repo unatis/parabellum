@@ -64,5 +64,27 @@ def make_decal():
     log(f"saved {full}")
 
 
+def make_unlit_emissive(name, color, opacity_from_uv=False):
+    """Излучающий unlit-материал (трейсер, вспышка). Additive, чтобы складывался с фоном."""
+    path = "/Game/Weapons/FX"
+    full = f"{path}/{name}"
+    if eal.does_asset_exist(full):
+        mat = eal.load_asset(full)
+        mel.delete_all_material_expressions(mat)
+    else:
+        mat = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, path, unreal.Material, unreal.MaterialFactoryNew())
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    mat.set_editor_property("two_sided", True)
+    c = mel.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -400, 0)
+    c.set_editor_property("constant", unreal.LinearColor(*color, 1.0))
+    mel.connect_material_property(c, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.recompile_material(mat)
+    eal.save_loaded_asset(mat)
+    log(f"saved {full}")
+
+
 make_decal()
+make_unlit_emissive("M_Tracer", (8.0, 6.0, 3.0))        # тёплый, яркий - additive даст свечение
+make_unlit_emissive("M_MuzzleFlash", (30.0, 18.0, 6.0))
 unreal.log("[weapon-assets] DONE")

@@ -8,6 +8,9 @@ class USkeletalMeshComponent;
 class UAnimSequence;
 class USoundBase;
 class UMaterialInterface;
+class UStaticMesh;
+class UStaticMeshComponent;
+class UPointLightComponent;
 class APBLCharacter;
 
 /**
@@ -54,6 +57,18 @@ protected:
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_HitFX(FVector_NetQuantize Location, FVector_NetQuantizeNormal Normal, bool bHitCharacter);
 
+	/** Сервер подтверждает владельцу попадание по мишени - хит-маркер и звук только у стрелявшего. */
+	UFUNCTION(Client, Unreliable)
+	void Client_HitConfirmed(bool bHead, bool bKill);
+
+	/** Трейсер и вспышка: у владельца сразу (предсказание), у остальных - по мультикасту. */
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_ShotFX(FVector_NetQuantize End);
+	void PlayShotFX(const FVector& End);
+	void SpawnTracer(const FVector& From, const FVector& To);
+	void HideMuzzleFlash();
+	FVector GetMuzzleLocation() const;
+
 	UFUNCTION(Server, Reliable)
 	void Server_Reload();
 
@@ -69,6 +84,13 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Parabellum|Weapon")
 	TObjectPtr<USkeletalMeshComponent> Mesh;
+
+	/** Вспышка: маленький излучающий меш + точечный свет на 1-2 кадра. */
+	UPROPERTY(VisibleAnywhere, Category = "Parabellum|Weapon")
+	TObjectPtr<UStaticMeshComponent> MuzzleFlash;
+	UPROPERTY(VisibleAnywhere, Category = "Parabellum|Weapon")
+	TObjectPtr<UPointLightComponent> MuzzleLight;
+	FTimerHandle MuzzleTimer;
 
 	UPROPERTY(Transient)
 	TObjectPtr<APBLCharacter> OwnerCharacter;
@@ -92,6 +114,19 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> DryFireSound;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> ReloadSound;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UMaterialInterface> ImpactDecal;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UMaterialInterface> TracerMaterial;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UMaterialInterface> MuzzleFlashMaterial;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> ImpactSound;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> BodyHitSound;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> HitMarkerSound;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> KillSound;
+	/** Дуло в локальных координатах меша оружия (у SK_Pistol сокетов нет). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector MuzzleOffset = FVector(0.0f, 19.0f, 9.0f);
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float TracerLifetime = 0.06f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float TracerThickness = 1.2f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float MuzzleFlashTime = 0.04f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float MuzzleFlashSize = 6.0f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float MuzzleLightIntensity = 4000.0f;
 
 	/** Положение вида от первого лица относительно камеры (см): вперёд, вправо, вверх. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector ViewOffset = FVector(28.0f, 12.0f, -14.0f);
