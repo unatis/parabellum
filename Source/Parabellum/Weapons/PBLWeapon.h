@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Ballistics/PBLBallisticsTypes.h"
+#include "Weapons/PBLProjectile.h"
 #include "PBLWeapon.generated.h"
 
 class USkeletalMeshComponent;
@@ -44,6 +46,15 @@ public:
 	int32 GetAmmoInMag() const { return AmmoInMag; }
 	int32 GetMagSize() const { return MagSize; }
 	bool IsReloading() const { return bReloading; }
+	const FPBLShotReport& GetLastReport() const { return LastReport; }
+	float GetLastReportTime() const { return LastReportTime; }
+
+	/** Косметический след пули за кадр (вызывает пуля на всех машинах). */
+	void DrawTracerSegment(const FVector& From, const FVector& To) { SpawnTracer(From, To); }
+
+	// --- Обратные вызовы пули (сервер) ---
+	void OnProjectileImpact(const FHitResult& Hit, const FVector& ImpactVelocity_mps, float Damage);
+	void OnProjectileFinished(const FPBLShotReport& Report);
 
 protected:
 	virtual void BeginPlay() override;
@@ -54,6 +65,17 @@ protected:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_Fire(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir);
 
+	/** Отчёт о выстреле стрелку (HUD-хронограф). */
+	UFUNCTION(Client, Unreliable)
+	void Client_ShotReport(FPBLShotReport Report);
+
+	/** Запуск пули (сервер - авторитетной, клиенты - косметической). Origin в см, Velocity м/с. */
+	void LaunchProjectile(const FVector& Origin, const FVector& Velocity, const FVector& LOSOrigin, const FVector& LOSDir, bool bAuthoritative);
+	/** Точка и направление вылета с учётом прицельной линии и нуля. */
+	void ComputeLaunch(const FVector& LOSOrigin, const FVector& LOSDir, FVector& OutOrigin, FVector& OutDir) const;
+	void LoadWeaponData();
+	void AppendShotCsv(const FPBLShotReport& R) const;
+
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_HitFX(FVector_NetQuantize Location, FVector_NetQuantizeNormal Normal, bool bHitCharacter);
 
@@ -61,10 +83,10 @@ protected:
 	UFUNCTION(Client, Unreliable)
 	void Client_HitConfirmed(bool bHead, bool bKill);
 
-	/** Трейсер и вспышка: у владельца сразу (предсказание), у остальных - по мультикасту. */
+	/** Вспышка и косметическая пуля у других клиентов (владелец уже запустил свою). */
 	UFUNCTION(NetMulticast, Unreliable)
-	void Multicast_ShotFX(FVector_NetQuantize End);
-	void PlayShotFX(const FVector& End);
+	void Multicast_ShotFX(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir);
+	void PlayMuzzleFX();
 	void SpawnTracer(const FVector& From, const FVector& To);
 	void HideMuzzleFlash();
 	FVector GetMuzzleLocation() const;
@@ -106,7 +128,21 @@ protected:
 	float ServerLastFireTime = -1000.0f;
 	FTimerHandle ReloadTimer;
 
+	// --- Данные из CSV (E10.1) ---
+	FPBLFirearmData Firearm;
+	FPBLCartridgeData Cartridge;
+	bool bHasData = false;
+	float ZeroAngle_rad = 0.0f;
+	FPBLShotReport LastReport;
+	float LastReportTime = -1000.0f;
+
 	// --- Параметры (Config) ---
+	/** Имя образца в Content/Data/Firearms.csv - оттуда патрон, ствол, магазин, темп, рассеивание, ноль. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FName FirearmName = TEXT("Glock17");
+	/** Класс пули. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftClassPtr<APBLProjectile> ProjectileClass;
+	/** Писать каждый выстрел в Saved/Ballistics/shots.csv (сервер). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") bool bLogShotsCsv = true;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USkeletalMesh> WeaponMesh;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UAnimSequence> FireAnim;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UAnimSequence> ReloadAnim;

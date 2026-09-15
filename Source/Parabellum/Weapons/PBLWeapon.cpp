@@ -8,6 +8,13 @@
 #include "Components/PointLightComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Player/PBLHUD.h"
+#include "Ballistics/PBLBallistics.h"
+#include "Ballistics/PBLWeaponDataSubsystem.h"
+#include "Engine/GameInstance.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/DateTime.h"
+#include "HAL/FileManager.h"
 #include "Targets/PBLTargetDummy.h"
 #include "GameFramework/PlayerController.h"
 #include "UObject/ConstructorHelpers.h"
@@ -61,6 +68,7 @@ void APBLWeapon::BeginPlay()
 	{
 		Mesh->SetSkeletalMeshAsset(SM);
 	}
+	LoadWeaponData();
 	if (HasAuthority())
 	{
 		AmmoInMag = MagSize;
@@ -69,6 +77,54 @@ void APBLWeapon::BeginPlay()
 	MuzzleFlash->SetRelativeScale3D(FVector(MuzzleFlashSize / 100.0f));
 	if (UMaterialInterface* M = MuzzleFlashMaterial.LoadSynchronous()) { MuzzleFlash->SetMaterial(0, M); }
 	MuzzleLight->SetRelativeLocation(MuzzleOffset + FVector(0.0f, 5.0f, 0.0f));
+}
+
+void APBLWeapon::LoadWeaponData()
+{
+	bHasData = false;
+	UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	UPBLWeaponDataSubsystem* Data = GI ? GI->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
+	const FPBLFirearmData* F = Data ? Data->FindFirearm(FirearmName) : nullptr;
+	const FPBLCartridgeData* C = F ? Data->FindCartridge(F->Cartridge) : nullptr;
+	if (!F || !C)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PBL Weapon: нет данных для '%s' в Content/Data - hitscan-заглушка"), *FirearmName.ToString());
+		return;
+	}
+	Firearm = *F;
+	Cartridge = *C;
+	bHasData = true;
+	MagSize = Firearm.MagSize;
+	if (Firearm.RPM > 0) { FireInterval = 60.0f / Firearm.RPM; }
+	// Рассеивание: MOA - полный угол группы; конус - полуугол. 1 MOA = 1/60 град.
+	SpreadDeg = Firearm.Dispersion_MOA / 60.0f * 0.5f;
+	const float V0 = PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m);
+	ZeroAngle_rad = PBLBallistics::SolveZeroAngle(Cartridge, FPBLAtmosphere(), V0, Firearm.SightHeight_m, Firearm.ZeroRange_m);
+	UE_LOG(LogTemp, Display, TEXT("PBL Weapon: %s / %s: V0 %.1f m/s, mag %d, interval %.3f s, spread %.2f deg, zero %.0f m -> angle %.2f MOA"),
+		*Firearm.Name.ToString(), *Cartridge.Name.ToString(), V0, MagSize, FireInterval, SpreadDeg, Firearm.ZeroRange_m, FMath::RadiansToDegrees(ZeroAngle_rad) * 60.0f);
+}
+
+void APBLWeapon::ComputeLaunch(const FVector& LOSOrigin, const FVector& LOSDir, FVector& OutOrigin, FVector& OutDir) const
+{
+	// Дуло на SightHeight ниже линии прицеливания, ствол приподнят на угол нуля вокруг оси "вправо".
+	const FVector Up = FVector::UpVector;
+	const FVector Right = FVector::CrossProduct(LOSDir, Up).GetSafeNormal();
+	const FVector LocalUp = FVector::CrossProduct(Right, LOSDir).GetSafeNormal();
+	OutOrigin = LOSOrigin - LocalUp * (Firearm.SightHeight_m * 100.0f);
+	OutDir = (LOSDir * FMath::Cos(ZeroAngle_rad) + LocalUp * FMath::Sin(ZeroAngle_rad)).GetSafeNormal();
+}
+
+void APBLWeapon::LaunchProjectile(const FVector& Origin, const FVector& Velocity, const FVector& LOSOrigin, const FVector& LOSDir, bool bAuthoritative)
+{
+	UClass* Cls = ProjectileClass.LoadSynchronous();
+	if (!Cls) { Cls = APBLProjectile::StaticClass(); }
+	FActorSpawnParameters P;
+	P.Owner = this;
+	P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (APBLProjectile* Proj = GetWorld()->SpawnActor<APBLProjectile>(Cls, Origin, Velocity.Rotation(), P))
+	{
+		Proj->Launch(this, Cartridge, Origin, Velocity, LOSOrigin, LOSDir, bAuthoritative, Damage);
+	}
 }
 
 FVector APBLWeapon::GetMuzzleLocation() const
@@ -113,27 +169,24 @@ void APBLWeapon::FireOnce()
 		return;
 	}
 
-	// Луч из центра экрана. При включённой системе зрения центр не пересчитывается (плотность CS),
-	// поэтому центральный луч совпадает с направлением камеры и в композите.
+	// Линия прицеливания - из камеры вдоль взгляда (центр экрана). Разброс - на клиенте, направление
+	// уходит серверу как есть: тогда локальная косметическая пуля и серверная летят одинаково.
 	const UCameraComponent* Cam = OwnerCharacter->GetFirstPersonCamera();
-	const FVector Origin = Cam->GetComponentLocation();
-	const FVector Dir = ApplySpread(Cam->GetForwardVector());
+	const FVector LOSOrigin = Cam->GetComponentLocation();
+	const FVector LOSDir = ApplySpread(Cam->GetForwardVector());
 
 	// Мгновенная локальная реакция (как в CS), сервер догонит.
 	PlayLocalFireFX();
-	{
-		FHitResult LocalHit;
-		FCollisionQueryParams P(SCENE_QUERY_STAT(PBLWeaponPredict), true);
-		P.AddIgnoredActor(this);
-		P.AddIgnoredActor(OwnerCharacter);
-		const FVector End = Origin + Dir * Range;
-		const bool bLocalHit = GetWorld()->LineTraceSingleByChannel(LocalHit, Origin, End, ECC_Visibility, P);
-		PlayShotFX(bLocalHit ? LocalHit.ImpactPoint : End);
-	}
+	PlayMuzzleFX();
 	OwnerCharacter->ApplyRecoil(RecoilPitch, FMath::RandRange(-RecoilYawRandom, RecoilYawRandom));
-	if (!HasAuthority()) { AmmoInMag = FMath::Max(AmmoInMag - 1, 0); }  // предсказание для HUD
+	if (!HasAuthority())
+	{
+		AmmoInMag = FMath::Max(AmmoInMag - 1, 0);  // предсказание для HUD
+		FVector O, D; ComputeLaunch(LOSOrigin, LOSDir, O, D);
+		if (bHasData) { LaunchProjectile(O, D * PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m), LOSOrigin, LOSDir, false); }
+	}
 
-	Server_Fire(Origin, Dir);
+	Server_Fire(LOSOrigin, LOSDir);
 }
 
 bool APBLWeapon::Server_Fire_Validate(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir)
@@ -151,33 +204,26 @@ void APBLWeapon::Server_Fire_Implementation(FVector_NetQuantize Origin, FVector_
 	ServerLastFireTime = Now;
 	AmmoInMag--;
 
-	FHitResult Hit;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(PBLWeaponFire), true);
-	Params.AddIgnoredActor(this);
-	if (OwnerCharacter) { Params.AddIgnoredActor(OwnerCharacter); }
-	const FVector End = Origin + Dir * Range;
-	const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Origin, End, ECC_Visibility, Params);
-	UE_LOG(LogTemp, Display, TEXT("PBL: shot from %s dir %s -> %s actor=%s comp=%s dist=%.0f bone=%s"),
-		*Origin.ToCompactString(), *Dir.ToCompactString(), bHit ? TEXT("HIT") : TEXT("miss"),
-		bHit ? *GetNameSafe(Hit.GetActor()) : TEXT("-"), bHit ? *GetNameSafe(Hit.GetComponent()) : TEXT("-"),
-		bHit ? Hit.Distance : 0.0f, *Hit.BoneName.ToString());
-	Multicast_ShotFX(bHit ? Hit.ImpactPoint : End);
-	if (!bHit) { return; }
+	const FVector LOSOrigin = Origin;
+	const FVector LOSDir = FVector(Dir).GetSafeNormal();
+	Multicast_ShotFX(LOSOrigin, LOSDir);
 
-	// Множитель за голову считает получатель (у него хитбоксы) - оружие шлёт базовый урон.
-	const bool bCharacter = Hit.GetComponent() && Hit.GetComponent()->GetCollisionObjectType() == ECC_Pawn;
-	const bool bHead = bCharacter && Hit.GetComponent()->GetName().Contains(TEXT("Head"));
-	if (Hit.GetActor())
+	if (!bHasData)
 	{
-		const float Applied = UGameplayStatics::ApplyPointDamage(Hit.GetActor(), Damage, Dir, Hit, OwnerCharacter ? OwnerCharacter->GetController() : nullptr, this, nullptr);
-		if (bCharacter && Applied > 0.0f)
+		// Заглушка без данных: мгновенный луч (старое поведение).
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(PBLWeaponFire), true);
+		Params.AddIgnoredActor(this);
+		if (OwnerCharacter) { Params.AddIgnoredActor(OwnerCharacter); }
+		if (GetWorld()->LineTraceSingleByChannel(Hit, LOSOrigin, LOSOrigin + LOSDir * Range, ECC_Visibility, Params))
 		{
-			bool bKill = false;
-			if (const APBLTargetDummy* D = Cast<APBLTargetDummy>(Hit.GetActor())) { bKill = !D->IsAlive(); }
-			Client_HitConfirmed(bHead, bKill);
+			OnProjectileImpact(Hit, LOSDir * 350.0f, Damage);
 		}
+		return;
 	}
-	Multicast_HitFX(Hit.ImpactPoint, Hit.ImpactNormal, bCharacter);
+
+	FVector O, D; ComputeLaunch(LOSOrigin, LOSDir, O, D);
+	LaunchProjectile(O, D * PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m), LOSOrigin, LOSDir, true);
 }
 
 void APBLWeapon::Multicast_HitFX_Implementation(FVector_NetQuantize Location, FVector_NetQuantizeNormal Normal, bool bHitCharacter)
@@ -201,21 +247,25 @@ void APBLWeapon::SpawnImpact(const FVector& Location, const FVector& Normal, boo
 	}
 }
 
-void APBLWeapon::Multicast_ShotFX_Implementation(FVector_NetQuantize End)
+void APBLWeapon::Multicast_ShotFX_Implementation(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir)
 {
-	// Владелец уже отрисовал свой выстрел локально в FireOnce.
-	if (OwnerCharacter && OwnerCharacter->IsLocallyControlled()) { return; }
-	PlayShotFX(End);
+	// Владелец уже сделал всё локально; сервер (listen) запускает авторитетную пулю сам.
+	if (HasAuthority() || (OwnerCharacter && OwnerCharacter->IsLocallyControlled())) { return; }
+	PlayMuzzleFX();
+	if (bHasData)
+	{
+		FVector O, D; ComputeLaunch(Origin, FVector(Dir), O, D);
+		LaunchProjectile(O, D * PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m), Origin, FVector(Dir), false);
+	}
 }
 
-void APBLWeapon::PlayShotFX(const FVector& End)
+void APBLWeapon::PlayMuzzleFX()
 {
 	MuzzleFlash->SetVisibility(true);
 	MuzzleFlash->SetRelativeRotation(FRotator(FMath::FRandRange(0.0f, 360.0f), FMath::FRandRange(0.0f, 360.0f), 0.0f));
 	MuzzleLight->SetVisibility(true);
 	MuzzleLight->SetIntensity(MuzzleLightIntensity);
 	GetWorldTimerManager().SetTimer(MuzzleTimer, this, &APBLWeapon::HideMuzzleFlash, MuzzleFlashTime, false);
-	SpawnTracer(GetMuzzleLocation(), End);
 }
 
 void APBLWeapon::HideMuzzleFlash()
@@ -247,6 +297,56 @@ void APBLWeapon::SpawnTracer(const FVector& From, const FVector& To)
 	A->SetRootComponent(C);
 	C->SetWorldTransform(T);
 	A->SetLifeSpan(TracerLifetime);
+}
+
+void APBLWeapon::OnProjectileImpact(const FHitResult& Hit, const FVector& ImpactVelocity_mps, float DamageToApply)
+{
+	if (!HasAuthority()) { return; }
+	const bool bCharacter = Hit.GetComponent() && Hit.GetComponent()->GetCollisionObjectType() == ECC_Pawn;
+	const bool bHead = bCharacter && Hit.GetComponent()->GetName().Contains(TEXT("Head"));
+	if (Hit.GetActor())
+	{
+		const float Applied = UGameplayStatics::ApplyPointDamage(Hit.GetActor(), DamageToApply, ImpactVelocity_mps.GetSafeNormal(), Hit,
+			OwnerCharacter ? OwnerCharacter->GetController() : nullptr, this, nullptr);
+		if (bCharacter && Applied > 0.0f)
+		{
+			bool bKill = false;
+			if (const APBLTargetDummy* D = Cast<APBLTargetDummy>(Hit.GetActor())) { bKill = !D->IsAlive(); }
+			Client_HitConfirmed(bHead, bKill);
+		}
+	}
+	Multicast_HitFX(Hit.ImpactPoint, Hit.ImpactNormal, bCharacter);
+}
+
+void APBLWeapon::OnProjectileFinished(const FPBLShotReport& Report)
+{
+	if (!HasAuthority()) { return; }
+	UE_LOG(LogTemp, Display, TEXT("PBL shot: V0 %.1f  dist %.2f m  Vimp %.1f  E %.0f J  t %.3f s  drop %+.1f cm  %s"),
+		Report.V0_mps, Report.Distance_m, Report.ImpactVelocity_mps, Report.ImpactEnergy_J, Report.TimeOfFlight_s, Report.DropFromLOS_m * 100.0f,
+		Report.bHit ? (Report.bHitTarget ? TEXT("TARGET") : TEXT("hit")) : TEXT("no hit"));
+	if (bLogShotsCsv) { AppendShotCsv(Report); }
+	Client_ShotReport(Report);
+}
+
+void APBLWeapon::Client_ShotReport_Implementation(FPBLShotReport Report)
+{
+	LastReport = Report;
+	LastReportTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+}
+
+void APBLWeapon::AppendShotCsv(const FPBLShotReport& R) const
+{
+	const FString Dir = FPaths::ProjectSavedDir() / TEXT("Ballistics");
+	const FString Path = Dir / TEXT("shots.csv");
+	IFileManager::Get().MakeDirectory(*Dir, true);
+	if (!IFileManager::Get().FileExists(*Path))
+	{
+		FFileHelper::SaveStringToFile(TEXT("time,firearm,cartridge,v0_mps,distance_m,vimp_mps,energy_J,tof_s,drop_cm,hit,target\n"), *Path);
+	}
+	const FString Line = FString::Printf(TEXT("%s,%s,%s,%.1f,%.2f,%.1f,%.0f,%.4f,%.1f,%d,%d\n"),
+		*FDateTime::Now().ToIso8601(), *Firearm.Name.ToString(), *Cartridge.Name.ToString(), R.V0_mps, R.Distance_m, R.ImpactVelocity_mps,
+		R.ImpactEnergy_J, R.TimeOfFlight_s, R.DropFromLOS_m * 100.0f, R.bHit ? 1 : 0, R.bHitTarget ? 1 : 0);
+	FFileHelper::SaveStringToFile(Line, *Path, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 }
 
 void APBLWeapon::Client_HitConfirmed_Implementation(bool bHead, bool bKill)

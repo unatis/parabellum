@@ -40,6 +40,15 @@ void APBLHUD::DrawHUD()
 		const FString Ammo = W->IsReloading() ? TEXT("RELOAD") : FString::Printf(TEXT("%d / %d"), W->GetAmmoInMag(), W->GetMagSize());
 		DrawText(Ammo, FLinearColor::White, Canvas->ClipX - 140.0f, Canvas->ClipY - 60.0f, GEngine->GetLargeFont(), 1.5f);
 	}
+	// Хронограф: отчёт о последнем выстреле, 4 с.
+	if (W && GetWorld() && GetWorld()->GetTimeSeconds() - W->GetLastReportTime() < 4.0f)
+	{
+		const FPBLShotReport& R = W->GetLastReport();
+		const FString Line1 = FString::Printf(TEXT("V0 %.0f m/s   dist %.1f m   Vimp %.0f m/s   E %.0f J"), R.V0_mps, R.Distance_m, R.ImpactVelocity_mps, R.ImpactEnergy_J);
+		const FString Line2 = FString::Printf(TEXT("t %.3f s   drop %+.1f cm   %s"), R.TimeOfFlight_s, R.DropFromLOS_m * 100.0f, R.bHit ? (R.bHitTarget ? TEXT("TARGET") : TEXT("hit")) : TEXT("no hit"));
+		DrawText(Line1, FLinearColor(1.0f, 0.9f, 0.5f, 0.9f), 30.0f, 30.0f, GEngine->GetLargeFont(), 1.1f);
+		DrawText(Line2, FLinearColor(1.0f, 0.9f, 0.5f, 0.9f), 30.0f, 55.0f, GEngine->GetLargeFont(), 1.1f);
+	}
 	if (const APBLPlayerState* PS = GetOwningPlayerController() ? GetOwningPlayerController()->GetPlayerState<APBLPlayerState>() : nullptr)
 	{
 		const FString Score = FString::Printf(TEXT("HITS %d   HS %d   KILLS %d"), PS->Hits, PS->Headshots, PS->Kills);

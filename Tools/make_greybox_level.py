@@ -69,7 +69,15 @@ box("Ramp_Top", (-1150, 1400, 100), (250, 200, 200))
 # Мишени-манекены (Э5): APBLTargetDummy. (x, y, yaw)
 DUMMIES = [(-900, 1500, 180), (300, 200, -90), (1500, -300, 135)]
 
-PLAYER_STARTS = [(-1700, -1700, 100, 45), (1700, 1700, 100, -135), (-1700, 1700, 100, -45), (1700, -700, 100, 135)]
+# Стрелковая полоса (E10.4): от восточной стены арены на восток, 8 м шириной, 320 м длиной.
+# Проём в восточной стене, пол, боковые стены, метки дистанции каждые 25 м, щиты-мишени.
+LANE_START_X = half + WALL_T            # начало полосы за стеной
+LANE_LEN = 32000
+LANE_W = 800
+LANE_TARGETS = [25, 50, 100, 200, 300]  # м, щиты 1x1.5 м
+LANE_MARKS = list(range(25, 301, 25))
+
+PLAYER_STARTS = [(-1700, -1700, 100, 45), (1700, 1700, 100, -135), (-1700, 1700, 100, -45), (1700, -700, 100, 135), (2100, 0, 100, 0)]
 
 # Свет и экспозиция. Экспозиция фиксирована (спека зрения: авто-экспозиция даст швы на Э6).
 SUN_ROTATION = (-50, 35, 0)
@@ -164,6 +172,23 @@ def main():
     if cube is None:
         raise RuntimeError(f"no mesh {CUBE}")
 
+    # Полоса: проём в стене
+    box("Lane_Floor", (LANE_START_X + LANE_LEN / 2, 0, -10), (LANE_LEN, LANE_W, 20))
+    box("Lane_Wall_N", (LANE_START_X + LANE_LEN / 2,  LANE_W / 2, WALL_H / 2), (LANE_LEN, WALL_T, WALL_H))
+    box("Lane_Wall_S", (LANE_START_X + LANE_LEN / 2, -LANE_W / 2, WALL_H / 2), (LANE_LEN, WALL_T, WALL_H))
+    box("Lane_Wall_End", (LANE_START_X + LANE_LEN, 0, WALL_H / 2), (WALL_T, LANE_W, WALL_H))
+    for i, d in enumerate(LANE_MARKS):
+        x = LANE_START_X + d * 100
+        box(f"Lane_Mark_{d}", (x, LANE_W / 2 - 40, 60), (10, 10, 120))
+        box(f"Lane_Mark2_{d}", (x, -LANE_W / 2 + 40, 60), (10, 10, 120))
+    for d in LANE_TARGETS:
+        x = LANE_START_X + d * 100
+        box(f"Lane_Target_{d}", (x, 0, 150), (10, 100, 150))   # щит 1 м x 1.5 м, центр на 1.5 м
+    # Проём: восточную стену рисуем двумя половинами вместо целой
+    LAYOUT[:] = [item for item in LAYOUT if item[0] != "Wall_E"]
+    box("Wall_E_a", (half, (LANE_W / 2 + ARENA / 2) / 2 + 0, WALL_H / 2), (WALL_T, ARENA / 2 - LANE_W / 2, WALL_H))
+    box("Wall_E_b", (half, -((LANE_W / 2 + ARENA / 2) / 2), WALL_H / 2), (WALL_T, ARENA / 2 - LANE_W / 2, WALL_H))
+
     floor_mat = make_floor_material()
     for label, center, size, rot in LAYOUT:
         a = spawn(unreal.StaticMeshActor, center, rot, label, "Geometry")
@@ -177,6 +202,14 @@ def main():
     for i, (x, y, yaw) in enumerate(DUMMIES):
         spawn(unreal.PBLTargetDummy, (x, y, 0), (0, yaw, 0), f"Dummy_{i}", "Targets")
     log(f"dummies: {len(DUMMIES)}")
+
+    for d in LANE_MARKS:
+        t = spawn(unreal.TextRenderActor, (LANE_START_X + d * 100, LANE_W / 2 - 60, 200), (0, -90, 0), f"Lane_Label_{d}", "Lane")
+        tr = t.text_render
+        tr.set_text(unreal.Text(f"{d} m"))
+        tr.set_editor_property("world_size", 60.0)
+        tr.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
+    log(f"lane: {LANE_LEN/100:.0f} m, marks {len(LANE_MARKS)}, targets {LANE_TARGETS}")
 
     for i, (x, y, z, yaw) in enumerate(PLAYER_STARTS):
         ps = spawn(unreal.PlayerStart, (x, y, z), (0, yaw, 0), f"PlayerStart_{i}", "Spawns")
