@@ -25,3 +25,6 @@ desktop.ini
 
 # Source assets for import (FBX, zips) - large binaries, kept locally
 Import/
+
+# Playwright MCP scratch
+.playwright-mcp/
