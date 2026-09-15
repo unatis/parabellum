@@ -46,6 +46,9 @@ void UPBLWeaponDataSubsystem::Reload()
 {
 	Cartridges.Reset();
 	Firearms.Reset();
+	Materials.Reset();
+	References.Reset();
+	auto Num = [](const TMap<FString, FString>& R, const TCHAR* Key, float Default = 0.0f) { const FString* V = R.Find(Key); return (V && !V->IsEmpty()) ? FCString::Atof(**V) : Default; };
 	const FString Dir = FPaths::ProjectContentDir() / TEXT("Data");
 
 	TArray<TMap<FString, FString>> Rows;
@@ -63,6 +66,15 @@ void UPBLWeaponDataSubsystem::Reload()
 			C.DragModel = R.FindRef(TEXT("DragModel")).Equals(TEXT("G7"), ESearchCase::IgnoreCase) ? EPBLDragModel::G7 : EPBLDragModel::G1;
 			C.BC = FCString::Atof(*R.FindRef(TEXT("BC")));
 			C.Construction = FName(*R.FindRef(TEXT("Construction")));
+			C.Length_m = Num(R, TEXT("Length_mm"), 15.0f) / 1000.0f;
+			C.MediumCd = Num(R, TEXT("MediumCd"), 0.2f);
+			C.YawOnsetDepth_m = Num(R, TEXT("YawOnsetDepth_mm")) / 1000.0f;
+			C.YawedCd = Num(R, TEXT("YawedCd"), 0.7f);
+			C.ExpansionThresholdV_mps = Num(R, TEXT("ExpansionThresholdV_mps"));
+			C.ExpandedDiameter_m = Num(R, TEXT("ExpandedDiameter_mm")) / 1000.0f;
+			C.ExpandedCd = Num(R, TEXT("ExpandedCd"), 0.3f);
+			C.ExpansionDepth_m = Num(R, TEXT("ExpansionDepth_mm"), 25.0f) / 1000.0f;
+			C.RetainedMassFraction = Num(R, TEXT("RetainedMassFraction"), 1.0f);
 			if (!C.Name.IsNone()) { Cartridges.Add(C.Name, C); }
 		}
 	}
@@ -89,7 +101,39 @@ void UPBLWeaponDataSubsystem::Reload()
 	}
 	else { UE_LOG(LogTemp, Warning, TEXT("PBL Data: %s не прочитан"), *(Dir / TEXT("Firearms.csv"))); }
 
-	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms from %s"), Cartridges.Num(), Firearms.Num(), *Dir);
+	Rows.Reset();
+	if (ReadCsv(Dir / TEXT("Materials.csv"), Rows))
+	{
+		for (const auto& R : Rows)
+		{
+			FPBLMaterialData M;
+			M.Name = FName(*R.FindRef(TEXT("Name")));
+			M.Model = FName(*R.FindRef(TEXT("Model")));
+			M.Density_kgm3 = Num(R, TEXT("Density_kgm3"), 1000.0f);
+			M.Strength_Pa = Num(R, TEXT("Strength_Pa"));
+			if (!M.Name.IsNone()) { Materials.Add(M.Name, M); }
+		}
+	}
+	else { UE_LOG(LogTemp, Warning, TEXT("PBL Data: %s не прочитан"), *(Dir / TEXT("Materials.csv"))); }
+
+	Rows.Reset();
+	if (ReadCsv(Dir / TEXT("Reference_Gel.csv"), Rows))
+	{
+		for (const auto& R : Rows)
+		{
+			FPBLGelReference G;
+			G.Cartridge = FName(*R.FindRef(TEXT("Cartridge")));
+			G.Material = FName(*R.FindRef(TEXT("Material")));
+			G.V_mps = Num(R, TEXT("V_mps"));
+			G.Depth_m = Num(R, TEXT("Depth_cm")) / 100.0f;
+			G.ExpandedDiameter_m = Num(R, TEXT("ExpandedDiameter_mm")) / 1000.0f;
+			G.Source = R.FindRef(TEXT("Source"));
+			if (!G.Cartridge.IsNone()) { References.Add(G); }
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references from %s"),
+		Cartridges.Num(), Firearms.Num(), Materials.Num(), References.Num(), *Dir);
 }
 
 static FAutoConsoleCommandWithWorld CmdDataReload(TEXT("pbl.Data.Reload"), TEXT("Reload Content/Data/*.csv"),

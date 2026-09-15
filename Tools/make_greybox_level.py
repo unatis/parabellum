@@ -77,6 +77,10 @@ LANE_W = 800
 LANE_TARGETS = [25, 50, 100, 200, 300]  # м, щиты 1x1.5 м
 LANE_MARKS = list(range(25, 301, 25))
 
+# Блок геля (E10.6): протокол FBI - 10 ft (3 м) от дула. PS4 (2100,0) смотрит на восток вдоль полосы.
+GEL_BLOCKS = [(2100 + 300 + 50, 0)]   # центр блока 100 см длиной: ближняя грань на 3 м от PS4
+GEL_STAND_H = 115   # центр блока (+7.5) на высоте дула при стрельбе горизонтально с PS4 (~122 см)
+
 PLAYER_STARTS = [(-1700, -1700, 100, 45), (1700, 1700, 100, -135), (-1700, 1700, 100, -45), (1700, -700, 100, 135), (2100, 0, 100, 0)]
 
 # Свет и экспозиция. Экспозиция фиксирована (спека зрения: авто-экспозиция даст швы на Э6).
@@ -202,6 +206,13 @@ def main():
     for i, (x, y, yaw) in enumerate(DUMMIES):
         spawn(unreal.PBLTargetDummy, (x, y, 0), (0, yaw, 0), f"Dummy_{i}", "Targets")
     log(f"dummies: {len(DUMMIES)}")
+
+    for i, (x, y) in enumerate(GEL_BLOCKS):
+        st = spawn(unreal.StaticMeshActor, (x, y, GEL_STAND_H / 2), (0, 0, 0), f"Gel_Stand_{i}", "Range")
+        st.static_mesh_component.set_static_mesh(cube)
+        st.set_actor_scale3d(unreal.Vector(0.3, 0.3, GEL_STAND_H / 100.0))
+        spawn(unreal.PBLGelBlock, (x, y, GEL_STAND_H + 7.5), (0, 0, 0), f"GelBlock_{i}", "Range")
+    log(f"gel blocks: {len(GEL_BLOCKS)}")
 
     for d in LANE_MARKS:
         t = spawn(unreal.TextRenderActor, (LANE_START_X + d * 100, LANE_W / 2 - 60, 200), (0, -90, 0), f"Lane_Label_{d}", "Lane")

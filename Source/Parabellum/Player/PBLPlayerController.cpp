@@ -1,5 +1,8 @@
 #include "Player/PBLPlayerController.h"
 
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
+
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedPlayerInput.h"
 #include "TimerManager.h"
@@ -131,8 +134,9 @@ void APBLPlayerController::SetupAutoScreenshot()
 		for (int32 i = 0; i < AutoFire; ++i)
 		{
 			FTimerHandle H;
-			GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this]()
+			GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this, ApplyLook]()
 			{
+				ApplyLook();   // перед каждым выстрелом возвращаем прицел - отдача предыдущего не копится
 				if (APBLCharacter* C = Cast<APBLCharacter>(GetPawn())) { if (C->GetWeapon()) { C->GetWeapon()->StartFire(); } }
 			}), Start + i * 1.0f, false);
 		}
@@ -145,6 +149,24 @@ void APBLPlayerController::SetupAutoScreenshot()
 			if (bHasYaw) { R.Yaw = Yaw; }
 			if (bHasPitch) { R.Pitch = Pitch; }
 			SetControlRotation(R);
+		}
+		// -PBLScreenshotCamera=X,Y,Z,Pitch,Yaw: снимок с отдельной камеры-наблюдателя (например, сбоку блока геля).
+		FString CamSpec;
+		if (FParse::Value(FCommandLine::Get(), TEXT("PBLScreenshotCamera="), CamSpec, false))
+		{
+			TArray<FString> Parts;
+			CamSpec.ParseIntoArray(Parts, TEXT(","));
+			if (Parts.Num() >= 5)
+			{
+				const FVector Loc(FCString::Atof(*Parts[0]), FCString::Atof(*Parts[1]), FCString::Atof(*Parts[2]));
+				const FRotator Rot(FCString::Atof(*Parts[3]), FCString::Atof(*Parts[4]), 0.0f);
+				if (ACameraActor* Cam = GetWorld()->SpawnActor<ACameraActor>(Loc, Rot))
+				{
+					if (Parts.Num() >= 6) { Cam->GetCameraComponent()->SetFieldOfView(FCString::Atof(*Parts[5])); }
+					SetViewTargetWithBlend(Cam, 0.0f);
+					UE_LOG(LogTemp, Display, TEXT("PBL: screenshot camera at %s rot %s"), *Loc.ToCompactString(), *Rot.ToCompactString());
+				}
+			}
 		}
 		// Снимок делается в конце следующего кадра - даём кадру пройти с новым поворотом.
 		FTimerHandle H;

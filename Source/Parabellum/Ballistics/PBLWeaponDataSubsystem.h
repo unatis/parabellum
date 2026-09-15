@@ -21,6 +21,9 @@ public:
 	const FPBLFirearmData* FindFirearm(FName Name) const { return Firearms.Find(Name); }
 	const TMap<FName, FPBLCartridgeData>& AllCartridges() const { return Cartridges; }
 	const TMap<FName, FPBLFirearmData>& AllFirearms() const { return Firearms; }
+	const FPBLMaterialData* FindMaterial(FName Name) const { return Materials.Find(Name); }
+	const TMap<FName, FPBLMaterialData>& AllMaterials() const { return Materials; }
+	const TArray<FPBLGelReference>& GelReferences() const { return References; }
 
 	/** Перечитать CSV (консоль: pbl.Data.Reload). */
 	void Reload();
@@ -29,4 +32,6 @@ private:
 	static bool ReadCsv(const FString& Path, TArray<TMap<FString, FString>>& OutRows);
 	TMap<FName, FPBLCartridgeData> Cartridges;
 	TMap<FName, FPBLFirearmData> Firearms;
+	TMap<FName, FPBLMaterialData> Materials;
+	TArray<FPBLGelReference> References;
 };

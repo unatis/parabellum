@@ -24,7 +24,23 @@ struct FPBLCartridgeData
 	/** Баллистический коэффициент в lb/in^2 (как публикуют производители). */
 	UPROPERTY() float BC = 0.15f;
 	UPROPERTY() FName Construction = TEXT("FMJ");
+	UPROPERTY() float Length_m = 0.015f;
 
+	// --- Терминальная баллистика в плотной среде (модель Понселе, см. PBLPenetration.h) ---
+	/** Коэффициент сопротивления носом вперёд относительно площади сечения (в среде, не в воздухе). */
+	UPROPERTY() float MediumCd = 0.2f;
+	/** Глубина начала кувырка неэкспансивной пули, м (0 = не кувыркается). Cd переходит в YawedCd за ~5 см. */
+	UPROPERTY() float YawOnsetDepth_m = 0.0f;
+	UPROPERTY() float YawedCd = 0.7f;
+	/** Порог скорости раскрытия JHP, м/с (0 = не раскрывается). */
+	UPROPERTY() float ExpansionThresholdV_mps = 0.0f;
+	UPROPERTY() float ExpandedDiameter_m = 0.0f;
+	UPROPERTY() float ExpandedCd = 0.3f;
+	/** Глубина, на которой раскрытие завершается, м. */
+	UPROPERTY() float ExpansionDepth_m = 0.025f;
+	UPROPERTY() float RetainedMassFraction = 1.0f;
+
+	float FrontalArea_m2() const { return PI * 0.25f * Diameter_m * Diameter_m; }
 	float SectionalDensity_kgm2() const { return BulletMass_kg / (Diameter_m * Diameter_m); }
 };
 
@@ -45,6 +61,29 @@ struct FPBLFirearmData
 	UPROPERTY() float ZeroRange_m = 25.0f;
 	/** Механическое рассеивание, угловые минуты (полный угол группы). */
 	UPROPERTY() float Dispersion_MOA = 4.0f;
+};
+
+/** Материал среды (Content/Data/Materials.csv). Пока одна модель - Понселе для мягких сред (гель, вода, ткани). */
+USTRUCT(BlueprintType)
+struct FPBLMaterialData
+{
+	GENERATED_BODY()
+	UPROPERTY() FName Name;
+	UPROPERTY() FName Model = TEXT("Poncelet");
+	UPROPERTY() float Density_kgm3 = 1030.0f;
+	/** Статическая составляющая сопротивления (прочность), Па. */
+	UPROPERTY() float Strength_Pa = 160000.0f;
+};
+
+/** Эталонная строка (Content/Data/Reference_Gel.csv) для автосверки pbl.Ballistics.GelCheck. */
+struct FPBLGelReference
+{
+	FName Cartridge;
+	FName Material;
+	float V_mps = 0.0f;
+	float Depth_m = 0.0f;
+	float ExpandedDiameter_m = 0.0f;
+	FString Source;
 };
 
 USTRUCT(BlueprintType)

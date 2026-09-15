@@ -1,0 +1,6 @@
+Cartridge,Material,V_mps,Depth_cm,ExpandedDiameter_mm,Source
+9x19_124_FMJ,Gel10,355,65,9.0,"Типичные публичные тесты 9mm 124 gr FMJ в 10% желатине: 25-28 in (Brass Fetcher, Kneubuehl Wound Ballistics)"
+9x19_115_FMJ,Gel10,365,63,9.0,"Публичные тесты 115 gr FMJ: 24-27 in"
+9x19_147_FMJ,Gel10,300,70,9.0,"Публичные тесты 147 gr FMJ FN: 27-30 in"
+9x19_124_JHP,Gel10,350,34,16.5,"Federal HST 124 gr, bare gel FBI protocol: ~13.5 in, 0.65 in (Federal published test data)"
+9x19_147_JHP,Gel10,305,36,17.0,"Federal HST 147 gr, bare gel FBI protocol: ~14 in, 0.67 in"

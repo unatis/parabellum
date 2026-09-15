@@ -139,6 +139,8 @@ protected:
 	// --- Параметры (Config) ---
 	/** Имя образца в Content/Data/Firearms.csv - оттуда патрон, ствол, магазин, темп, рассеивание, ноль. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FName FirearmName = TEXT("Glock17");
+	/** Патрон вместо штатного из Firearms.csv (пусто = штатный). Для испытаний разных типов пуль в одном оружии. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FName CartridgeName;
 	/** Класс пули. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftClassPtr<APBLProjectile> ProjectileClass;
 	/** Писать каждый выстрел в Saved/Ballistics/shots.csv (сервер). */

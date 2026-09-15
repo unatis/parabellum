@@ -6,6 +6,7 @@
 #include "PBLProjectile.generated.h"
 
 class APBLWeapon;
+class APBLGelBlock;
 class UStaticMeshComponent;
 
 /** Итог полёта пули - для отчёта стрелку, HUD и CSV. */
@@ -22,6 +23,16 @@ struct FPBLShotReport
 	UPROPERTY() float DropFromLOS_m = 0.0f;
 	UPROPERTY() bool bHit = false;
 	UPROPERTY() bool bHitTarget = false;
+	UPROPERTY() FName HitActor;
+	// --- Проникание в среду (E10.6) ---
+	UPROPERTY() FName PenetrationMaterial;
+	/** Суммарный путь в плотной среде, м. */
+	UPROPERTY() float Penetration_m = 0.0f;
+	UPROPERTY() float MediumEntryVelocity_mps = 0.0f;
+	/** Скорость на выходе из последнего слоя, м/с (0 = остановилась внутри). */
+	UPROPERTY() float MediumExitVelocity_mps = 0.0f;
+	UPROPERTY() float FinalDiameter_mm = 0.0f;
+	UPROPERTY() bool bStoppedInMedium = false;
 };
 
 /**
@@ -46,6 +57,8 @@ public:
 
 protected:
 	void OnImpact(const FHitResult& Hit);
+	/** Попадание в блок среды: модель Понселе по толщине блока. true = пуля обработана (остановлена или прошла). */
+	bool PenetrateBlock(const FHitResult& Hit, APBLGelBlock* Block);
 	void Finish(bool bHit, const FHitResult* Hit);
 
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Visual;
@@ -59,6 +72,10 @@ protected:
 	float BaseDamage = 0.0f;
 	bool bAuthoritative = false;
 	bool bDone = false;
+	/** Накопленные данные проникания для отчёта. */
+	FName PenMaterial;
+	float Pen_m = 0.0f, PenEntryV = 0.0f, PenExitV = 0.0f, PenFinalDia_m = 0.0f;
+	bool bPenStopped = false;
 
 	/** Максимальный подшаг интегрирования, с. */
 	float MaxSubstep = 0.002f;

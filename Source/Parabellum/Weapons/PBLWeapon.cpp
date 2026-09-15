@@ -85,7 +85,7 @@ void APBLWeapon::LoadWeaponData()
 	UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
 	UPBLWeaponDataSubsystem* Data = GI ? GI->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
 	const FPBLFirearmData* F = Data ? Data->FindFirearm(FirearmName) : nullptr;
-	const FPBLCartridgeData* C = F ? Data->FindCartridge(F->Cartridge) : nullptr;
+	const FPBLCartridgeData* C = F ? Data->FindCartridge(CartridgeName.IsNone() ? F->Cartridge : CartridgeName) : nullptr;
 	if (!F || !C)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("PBL Weapon: нет данных для '%s' в Content/Data - hitscan-заглушка"), *FirearmName.ToString());
@@ -171,9 +171,12 @@ void APBLWeapon::FireOnce()
 
 	// Линия прицеливания - из камеры вдоль взгляда (центр экрана). Разброс - на клиенте, направление
 	// уходит серверу как есть: тогда локальная косметическая пуля и серверная летят одинаково.
+	// Направление - из управляющего поворота, а не из компонента камеры: тот обновляется на кадр позже
+	// (bUsePawnControlRotation), и выстрел сразу после поворота ушёл бы по старому взгляду.
 	const UCameraComponent* Cam = OwnerCharacter->GetFirstPersonCamera();
 	const FVector LOSOrigin = Cam->GetComponentLocation();
-	const FVector LOSDir = ApplySpread(Cam->GetForwardVector());
+	const FVector AimDir = OwnerCharacter->GetController() ? OwnerCharacter->GetController()->GetControlRotation().Vector() : Cam->GetForwardVector();
+	const FVector LOSDir = ApplySpread(AimDir);
 
 	// Мгновенная локальная реакция (как в CS), сервер догонит.
 	PlayLocalFireFX();
@@ -323,7 +326,13 @@ void APBLWeapon::OnProjectileFinished(const FPBLShotReport& Report)
 	if (!HasAuthority()) { return; }
 	UE_LOG(LogTemp, Display, TEXT("PBL shot: V0 %.1f  dist %.2f m  Vimp %.1f  E %.0f J  t %.3f s  drop %+.1f cm  %s"),
 		Report.V0_mps, Report.Distance_m, Report.ImpactVelocity_mps, Report.ImpactEnergy_J, Report.TimeOfFlight_s, Report.DropFromLOS_m * 100.0f,
-		Report.bHit ? (Report.bHitTarget ? TEXT("TARGET") : TEXT("hit")) : TEXT("no hit"));
+		Report.bHit ? (Report.bHitTarget ? TEXT("TARGET") : *FString::Printf(TEXT("hit %s"), *Report.HitActor.ToString())) : TEXT("no hit"));
+	if (!Report.PenetrationMaterial.IsNone())
+	{
+		UE_LOG(LogTemp, Display, TEXT("PBL shot: %s penetration %.1f cm (%.1f in), V_in %.1f, %s, final dia %.1f mm"),
+			*Report.PenetrationMaterial.ToString(), Report.Penetration_m * 100.0f, Report.Penetration_m / 0.0254f, Report.MediumEntryVelocity_mps,
+			Report.bStoppedInMedium ? TEXT("STOPPED") : *FString::Printf(TEXT("EXIT at %.1f m/s"), Report.MediumExitVelocity_mps), Report.FinalDiameter_mm);
+	}
 	if (bLogShotsCsv) { AppendShotCsv(Report); }
 	Client_ShotReport(Report);
 }
@@ -341,11 +350,12 @@ void APBLWeapon::AppendShotCsv(const FPBLShotReport& R) const
 	IFileManager::Get().MakeDirectory(*Dir, true);
 	if (!IFileManager::Get().FileExists(*Path))
 	{
-		FFileHelper::SaveStringToFile(TEXT("time,firearm,cartridge,v0_mps,distance_m,vimp_mps,energy_J,tof_s,drop_cm,hit,target\n"), *Path);
+		FFileHelper::SaveStringToFile(TEXT("time,firearm,cartridge,v0_mps,distance_m,vimp_mps,energy_J,tof_s,drop_cm,hit,target,medium,pen_cm,v_exit_mps,dia_mm,stopped\n"), *Path);
 	}
-	const FString Line = FString::Printf(TEXT("%s,%s,%s,%.1f,%.2f,%.1f,%.0f,%.4f,%.1f,%d,%d\n"),
+	const FString Line = FString::Printf(TEXT("%s,%s,%s,%.1f,%.2f,%.1f,%.0f,%.4f,%.1f,%d,%d,%s,%.1f,%.1f,%.1f,%d\n"),
 		*FDateTime::Now().ToIso8601(), *Firearm.Name.ToString(), *Cartridge.Name.ToString(), R.V0_mps, R.Distance_m, R.ImpactVelocity_mps,
-		R.ImpactEnergy_J, R.TimeOfFlight_s, R.DropFromLOS_m * 100.0f, R.bHit ? 1 : 0, R.bHitTarget ? 1 : 0);
+		R.ImpactEnergy_J, R.TimeOfFlight_s, R.DropFromLOS_m * 100.0f, R.bHit ? 1 : 0, R.bHitTarget ? 1 : 0,
+		*R.PenetrationMaterial.ToString(), R.Penetration_m * 100.0f, R.MediumExitVelocity_mps, R.FinalDiameter_mm, R.bStoppedInMedium ? 1 : 0);
 	FFileHelper::SaveStringToFile(Line, *Path, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 }
 
