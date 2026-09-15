@@ -1,0 +1,6 @@
+Name,Cartridge,Barrel_mm,RPM,Action,Mass_kg,MagSize,SightHeight_mm,ZeroRange_m,Dispersion_MOA,Notes
+Glock17,9x19_124_FMJ,114,0,Semi,0.905,17,20,25,4.0,"Gen 5, масса с пустым магазином ~0.63 + магазин"
+M4A1,5.56x45_M855,368,800,Auto,3.4,30,66,50,2.5,"14.5in, RIS"
+AKM,7.62x39_M43,415,600,Auto,3.5,30,55,100,4.0,""
+M14,7.62x51_M80,559,0,Semi,4.5,20,50,100,2.0,""
+Remington700_308,.308_168_SMK,610,0,Bolt,4.1,5,45,100,1.0,"24in, эталон для сверки"
