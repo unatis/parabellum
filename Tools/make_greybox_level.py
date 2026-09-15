@@ -66,6 +66,11 @@ box("Platform", (1500, -1500, 100), (400, 400, 200))
 box("Ramp", (-1500, 1400, 100), (447, 200, 20), rot=(26.57, 0, 0))
 box("Ramp_Top", (-1150, 1400, 100), (250, 200, 200))
 
+# Мишени-манекены (Э5): скелетный меш Mixamo Ch15 с зациклённой idle-анимацией. (x, y, yaw)
+DUMMY_MESH = "/Game/Characters/Ch15/Mesh/Ch15_nonPBR"
+DUMMY_ANIM = "/Game/Characters/Ch15/Anims/pistol_idle"
+DUMMIES = [(-900, 1500, 180), (300, 200, -90), (1500, -300, 135)]
+
 PLAYER_STARTS = [(-1700, -1700, 100, 45), (1700, 1700, 100, -135), (-1700, 1700, 100, -45), (1700, -700, 100, 135)]
 
 # Свет и экспозиция. Экспозиция фиксирована (спека зрения: авто-экспозиция даст швы на Э6).
@@ -169,6 +174,24 @@ def main():
         if label == "Floor" and floor_mat:
             a.static_mesh_component.set_material(0, floor_mat)
     log(f"geometry: {len(LAYOUT)} boxes")
+
+    mesh = eal.load_asset(DUMMY_MESH)
+    anim = eal.load_asset(DUMMY_ANIM)
+    if mesh:
+        for i, (x, y, yaw) in enumerate(DUMMIES):
+            a = spawn(unreal.SkeletalMeshActor, (x, y, 0), (0, yaw, 0), f"Dummy_{i}", "Targets")
+            c = a.skeletal_mesh_component
+            c.set_skeletal_mesh_asset(mesh)
+            if anim:
+                c.set_editor_property("animation_mode", unreal.AnimationMode.ANIMATION_SINGLE_NODE)
+                data = c.get_editor_property("animation_data")
+                data.set_editor_property("anim_to_play", anim)
+                data.set_editor_property("saved_looping", True)
+                data.set_editor_property("saved_playing", True)
+                c.set_editor_property("animation_data", data)
+        log(f"dummies: {len(DUMMIES)} ({'with' if anim else 'no'} anim)")
+    else:
+        log("dummies skipped: mesh not found (run Tools/import_mixamo.bat)")
 
     for i, (x, y, z, yaw) in enumerate(PLAYER_STARTS):
         ps = spawn(unreal.PlayerStart, (x, y, z), (0, yaw, 0), f"PlayerStart_{i}", "Spawns")
