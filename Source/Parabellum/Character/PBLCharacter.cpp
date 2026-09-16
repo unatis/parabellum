@@ -272,9 +272,17 @@ void APBLCharacter::Input_Reload()
 void APBLCharacter::Input_AimStart(const FInputActionValue&)
 {
 	if (Weapon) { Weapon->SetAiming(true); }
+	if (const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>())
+	{
+		if (UCharacterMovementComponent* Move = GetCharacterMovement()) { Move->MaxWalkSpeed = S->MaxWalkSpeed * S->AimSpeedScale; Move->MaxWalkSpeedCrouched = S->MaxCrouchSpeed * S->AimSpeedScale; }
+	}
 }
 
 void APBLCharacter::Input_AimStop(const FInputActionValue&)
 {
 	if (Weapon) { Weapon->SetAiming(false); }
+	if (const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>())
+	{
+		if (UCharacterMovementComponent* Move = GetCharacterMovement()) { Move->MaxWalkSpeed = S->MaxWalkSpeed; Move->MaxWalkSpeedCrouched = S->MaxCrouchSpeed; }
+	}
 }

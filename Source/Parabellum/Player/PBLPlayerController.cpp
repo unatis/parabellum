@@ -156,7 +156,7 @@ void APBLPlayerController::SetupAutoScreenshot()
 	int32 AutoFire = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("PBLAutoFire="), AutoFire) && AutoFire > 0)
 	{
-		const float Start = FMath::Max(AfterSeconds - 6.0f, 1.0f);
+		const float Start = FMath::Max(AfterSeconds - 6.0f, 1.5f);   // после применения взгляда (1.0 с) и выхода в прицел (1.2 с)
 		for (int32 i = 0; i < AutoFire; ++i)
 		{
 			FTimerHandle H;

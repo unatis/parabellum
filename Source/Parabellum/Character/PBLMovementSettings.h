@@ -50,6 +50,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Movement", meta = (ForceUnits = "cm/s"))
 	float MaxCrouchSpeed = 160.0f;
 
+	/** Множитель скорости ходьбы при прицеливании через мушку (реально с вытянутым пистолетом идут шагом ~0.5-0.6 от быстрого шага). */
+	UPROPERTY(Config, EditAnywhere, Category = "Movement")
+	float AimSpeedScale = 0.6f;
+
 	/** В CS разгон почти мгновенный. Больше = резче старт и стоп. */
 	UPROPERTY(Config, EditAnywhere, Category = "Movement")
 	float MaxAcceleration = 4096.0f;
