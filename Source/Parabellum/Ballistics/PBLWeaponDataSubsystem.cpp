@@ -120,6 +120,7 @@ void UPBLWeaponDataSubsystem::Reload()
 			M.Density_kgm3 = Num(R, TEXT("Density_kgm3"), 1000.0f);
 			M.Strength_Pa = Num(R, TEXT("Strength_Pa"));
 			M.MediumCdScale = Num(R, TEXT("MediumCdScale"), 1.0f);
+			M.ThresholdEnergyDensity_Jm2 = Num(R, TEXT("ThresholdEnergyDensity_Jm2"));
 			M.Thor_c = Num(R, TEXT("Thor_c")); M.Thor_alpha = Num(R, TEXT("Thor_alpha")); M.Thor_beta = Num(R, TEXT("Thor_beta"));
 			M.Thor_gamma = Num(R, TEXT("Thor_gamma")); M.Thor_lambda = Num(R, TEXT("Thor_lambda"));
 			M.RicochetAngleDeg = Num(R, TEXT("RicochetAngleDeg"));

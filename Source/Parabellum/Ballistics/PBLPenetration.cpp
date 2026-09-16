@@ -22,7 +22,9 @@ FPBLPenetrationResult PBLPenetration::Penetrate(const FPBLCartridgeData& C, cons
 	float Dia = D0, Cd = C.MediumCd * CdScale, Mass = M0;
 	R.bExpanded = bExpands;
 	int32 Guard = 0;
-	while (V > StopVelocity_mps && ++Guard < 200000)
+	// Порог остановки: E/A ниже порога среды - пуля не режет, останавливается (v_th = sqrt(2*Eth*A/m)).
+	auto StopV = [&](float DiaNow, float MassNow) { return M.ThresholdEnergyDensity_Jm2 > 0.0f ? FMath::Max(StopVelocity_mps, FMath::Sqrt(2.0f * M.ThresholdEnergyDensity_Jm2 * PI * 0.25f * DiaNow * DiaNow / FMath::Max(MassNow, 1e-6f))) : StopVelocity_mps; };
+	while (V > StopV(Dia, Mass) && ++Guard < 200000)
 	{
 		if (bExpands)
 		{
@@ -44,7 +46,7 @@ FPBLPenetrationResult PBLPenetration::Penetrate(const FPBLCartridgeData& C, cons
 		if (MaxThickness_m > 0.0f && S >= MaxThickness_m) { break; }
 	}
 	R.Depth_m = (MaxThickness_m > 0.0f) ? FMath::Min(S, MaxThickness_m) : S;
-	R.bStopped = V <= StopVelocity_mps;
+	R.bStopped = V <= StopV(Dia, Mass);
 	R.ExitVelocity_mps = R.bStopped ? 0.0f : V;
 	R.FinalDiameter_m = Dia;
 	R.FinalMass_kg = Mass;

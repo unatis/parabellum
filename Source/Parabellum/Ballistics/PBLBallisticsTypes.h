@@ -84,6 +84,8 @@ struct FPBLMaterialData
 	UPROPERTY() float Density_kgm3 = 1030.0f;
 	/** Статическая составляющая сопротивления (прочность), Па. */
 	UPROPERTY() float Strength_Pa = 160000.0f;
+	/** Порог остановки по плотности энергии E/A, Дж/м² (Кнойбюль: кожа ~0.1 Дж/мм² = 1e5): ниже пуля не режет среду и останавливается. 0 = нет. */
+	UPROPERTY() float ThresholdEnergyDensity_Jm2 = 0.0f;
 	/** Множитель Cd пули в этой среде (твёрдые/хрупкие среды тормозят сильнее гладкого обтекания). */
 	UPROPERTY() float MediumCdScale = 1.0f;
 	/** THOR (BRL, 1961): V_r = V_s - 10^c * (h*A)^alpha * m^beta * (sec theta)^gamma * V_s^lambda; h [in], A [in^2], m [gr], V [fps]. */
