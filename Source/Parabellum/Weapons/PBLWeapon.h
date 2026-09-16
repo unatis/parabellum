@@ -204,6 +204,9 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TArray<TSoftObjectPtr<USoundBase>> FireSounds;
 	/** Затухание по дистанции для выстрела (USoundAttenuation). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<class USoundAttenuation> FireAttenuation;
+	/** Случайная вариация выстрела: высота ±доля, громкость ±доля (реальные выстрелы почти одинаковы - вариация малая). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float FireSoundPitchVariation = 0.03f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float FireSoundVolumeVariation = 0.08f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> DryFireSound;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> ReloadSound;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UMaterialInterface> ImpactDecal;

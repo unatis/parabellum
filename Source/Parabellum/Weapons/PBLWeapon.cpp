@@ -511,7 +511,9 @@ void APBLWeapon::PlayLocalFireFX()
 	USoundBase* S = FireSounds.Num() > 0 ? FireSounds[FMath::RandRange(0, FireSounds.Num() - 1)].LoadSynchronous() : FireSound.LoadSynchronous();
 	if (S)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, S, GetMuzzleLocation(), 1.0f, 1.0f, 0.0f, FireAttenuation.LoadSynchronous());
+		const float Vol = 1.0f + FMath::FRandRange(-FireSoundVolumeVariation, FireSoundVolumeVariation);
+		const float Pitch = 1.0f + FMath::FRandRange(-FireSoundPitchVariation, FireSoundPitchVariation);
+		UGameplayStatics::PlaySoundAtLocation(this, S, GetMuzzleLocation(), Vol, Pitch, 0.0f, FireAttenuation.LoadSynchronous());
 	}
 }
 

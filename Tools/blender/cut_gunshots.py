@@ -23,12 +23,18 @@ for i, v in enumerate(env):
     if v > 0.3 and t - last > 0.3:
         onsets.append(t); last = t
 
-# Предпочитаем неклипованные выстрелы (пик < 0.999), затем остальные по порядку.
+# Настоящий выстрел - не щелчок: смотрим энергию (RMS) первых 60 мс после фронта. Берём самые энергичные и похожие
+# друг на друга (в пределах 3 дБ от громчайшего): реальные выстрелы одного оружия звучат почти одинаково.
 def peak_of(t):
     s0 = int(t * sr); return float(mono[s0:s0 + int(0.2 * sr)].max())
-ranked = sorted(onsets, key=lambda t: (peak_of(t) >= 0.999, onsets.index(t)))
-chosen = ranked[:max_shots]
-pre, length, fade = int(0.03 * sr), int(1.2 * sr), int(0.25 * sr)
+def rms_db(t):
+    s0 = int(t * sr); seg = a[s0:s0 + int(0.06 * sr)]; return 20 * np.log10(np.sqrt(np.mean(seg ** 2)) + 1e-9)
+for t in onsets:
+    print(f"@@ onset {t:.3f} s: peak {peak_of(t):.3f}, rms60 {rms_db(t):.1f} dB")
+loud = max(rms_db(t) for t in onsets)
+similar = [t for t in onsets if rms_db(t) >= loud - 3.0]
+chosen = sorted(similar, key=lambda t: -rms_db(t))[:max_shots]
+pre, length, fade = int(0.03 * sr), int(2.0 * sr), int(0.4 * sr)   # 2 с: хвост эха (до -40 дБ ~1.3 с) остаётся
 for k, t in enumerate(sorted(chosen)):
     s0 = max(int(t * sr) - pre, 0)
     seg = a[s0:s0 + length].copy()
