@@ -105,6 +105,8 @@ protected:
 
 	void FinishReload();
 	void PlayLocalFireFX();
+	void PlayIdle();
+	FTimerHandle IdleTimer;
 	void SpawnImpact(const FVector& Location, const FVector& Normal, bool bHitCharacter);
 
 	/** Разброс: направление с учётом текущего рассеивания (Э4.3 - паттерн отдачи придёт сюда). */
@@ -158,6 +160,14 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USkeletalMesh> WeaponMesh;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UAnimSequence> FireAnim;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UAnimSequence> ReloadAnim;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UAnimSequence> ReloadEmptyAnim;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UAnimSequence> IdleAnim;
+	/** Масштабировать меш под OverallLength_mm (для одиночных моделей оружия; для рига «руки+оружие» - выключить). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") bool bScaleMeshToLength = true;
+	/** Сокет/кость дула на меше; если нет - MuzzleOffset. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FName MuzzleSocket;
+	/** Печатать кости меша при старте (калибровка нового рига). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") bool bLogBones = false;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> FireSound;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> DryFireSound;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> ReloadSound;

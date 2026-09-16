@@ -76,6 +76,19 @@ void APBLWeapon::BeginPlay()
 	LoadWeaponData();
 	// Оружие спавнится в PossessedBy до BeginPlay мира - при привязке меша ещё не было; масштаб ставим и здесь.
 	ApplyRealSize();
+	PlayIdle();
+	if (bLogBones && Mesh->GetSkeletalMeshAsset())
+	{
+		for (int32 i = 0; i < Mesh->GetNumBones(); ++i)
+		{
+			const FVector L = Mesh->GetComponentTransform().InverseTransformPosition(Mesh->GetBoneLocation(Mesh->GetBoneName(i)));
+			UE_LOG(LogTemp, Display, TEXT("PBL Weapon bone %2d %-28s local (%.1f, %.1f, %.1f)"), i, *Mesh->GetBoneName(i).ToString(), L.X, L.Y, L.Z);
+		}
+		for (const TSoftObjectPtr<UAnimSequence>* A : { &IdleAnim, &FireAnim, &ReloadAnim, &ReloadEmptyAnim })
+		{
+			if (UAnimSequence* S = A->LoadSynchronous()) { UE_LOG(LogTemp, Display, TEXT("PBL Weapon anim %s: %.2f s"), *S->GetName(), S->GetPlayLength()); }
+		}
+	}
 	if (HasAuthority())
 	{
 		AmmoInMag = MagSize;
@@ -143,6 +156,7 @@ void APBLWeapon::LaunchProjectile(const FVector& Origin, const FVector& Velocity
 
 FVector APBLWeapon::GetMuzzleLocation() const
 {
+	if (!MuzzleSocket.IsNone() && Mesh->DoesSocketExist(MuzzleSocket)) { return Mesh->GetSocketLocation(MuzzleSocket); }
 	return Mesh->GetComponentTransform().TransformPosition(MuzzleOffset);
 }
 
@@ -162,18 +176,18 @@ void APBLWeapon::AttachToOwnerCamera(APBLCharacter* NewOwner)
 void APBLWeapon::ApplyRealSize()
 {
 	// Меш под реальную габаритную длину образца: любая модель (заглушка Lyra 24 см, Glock с Fab 9.6 см) становится 20.2 см.
-	if (bHasData && Firearm.OverallLength_m > 0.0f && Mesh && Mesh->GetSkeletalMeshAsset())
+	if (bScaleMeshToLength && bHasData && Firearm.OverallLength_m > 0.0f && Mesh && Mesh->GetSkeletalMeshAsset())
 	{
 		const FVector Ext = Mesh->GetSkeletalMeshAsset()->GetBounds().BoxExtent;
 		const float MeshLen_cm = 2.0f * FMath::Max(Ext.X, Ext.Y);
 		if (MeshLen_cm > 1.0f) { SetActorScale3D(FVector(Firearm.OverallLength_m * 100.0f / MeshLen_cm)); }
-		if (OwnerCharacter && OwnerCharacter->GetFirstPersonCamera())
-		{
-			const FTransform Cam = OwnerCharacter->GetFirstPersonCamera()->GetComponentTransform();
-			const FVector MuzzleRel = Cam.InverseTransformPosition(GetMuzzleLocation());
-			UE_LOG(LogTemp, Display, TEXT("PBL Weapon: mesh %.1f cm -> scale %.3f; muzzle rel. camera fwd %.1f right %.1f up %.1f cm"),
-				MeshLen_cm, Firearm.OverallLength_m * 100.0f / MeshLen_cm, MuzzleRel.X, MuzzleRel.Y, MuzzleRel.Z);
-		}
+		UE_LOG(LogTemp, Display, TEXT("PBL Weapon: mesh %.1f cm -> scale %.3f"), MeshLen_cm, Firearm.OverallLength_m * 100.0f / MeshLen_cm);
+	}
+	if (OwnerCharacter && OwnerCharacter->GetFirstPersonCamera() && Mesh && Mesh->GetSkeletalMeshAsset())
+	{
+		const FTransform Cam = OwnerCharacter->GetFirstPersonCamera()->GetComponentTransform();
+		const FVector MuzzleRel = Cam.InverseTransformPosition(GetMuzzleLocation());
+		UE_LOG(LogTemp, Display, TEXT("PBL Weapon: muzzle rel. camera fwd %.1f right %.1f up %.1f cm"), MuzzleRel.X, MuzzleRel.Y, MuzzleRel.Z);
 	}
 }
 
@@ -440,11 +454,17 @@ void APBLWeapon::PlayLocalFireFX()
 	if (UAnimSequence* A = FireAnim.LoadSynchronous())
 	{
 		Mesh->PlayAnimation(A, false);
+		GetWorldTimerManager().SetTimer(IdleTimer, this, &APBLWeapon::PlayIdle, FMath::Max(A->GetPlayLength(), 0.05f), false);
 	}
 	if (USoundBase* S = FireSound.LoadSynchronous())
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, S, GetActorLocation());
 	}
+}
+
+void APBLWeapon::PlayIdle()
+{
+	if (UAnimSequence* A = IdleAnim.LoadSynchronous()) { Mesh->PlayAnimation(A, true); }
 }
 
 FVector APBLWeapon::ApplySpread(const FVector& Dir) const
@@ -465,7 +485,12 @@ void APBLWeapon::Server_Reload_Implementation()
 {
 	if (bReloading || AmmoInMag >= MagSize) { return; }
 	bReloading = true;
-	if (UAnimSequence* A = ReloadAnim.LoadSynchronous()) { Mesh->PlayAnimation(A, false); }
+	UAnimSequence* A = (AmmoInMag <= 0 && !ReloadEmptyAnim.IsNull()) ? ReloadEmptyAnim.LoadSynchronous() : ReloadAnim.LoadSynchronous();
+	if (A)
+	{
+		Mesh->PlayAnimation(A, false);
+		GetWorldTimerManager().SetTimer(IdleTimer, this, &APBLWeapon::PlayIdle, FMath::Max(A->GetPlayLength(), ReloadTime), false);
+	}
 	if (USoundBase* S = ReloadSound.LoadSynchronous()) { UGameplayStatics::PlaySoundAtLocation(this, S, GetActorLocation()); }
 	GetWorldTimerManager().SetTimer(ReloadTimer, this, &APBLWeapon::FinishReload, ReloadTime, false);
 }
