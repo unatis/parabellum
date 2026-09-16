@@ -62,6 +62,8 @@ protected:
 	/** Попадание в слой материала (блок или геометрия мира): PassLayer по толщине вдоль пути, рикошет при скользящем угле.
 	 *  true = пуля обработана (остановлена, прошла или отскочила). */
 	bool PenetrateLayer(const FHitResult& Hit, const FName MaterialName, APBLMaterialBlock* Block);
+	/** Часть тела: стек слоёв (кожа/жир/мышцы/кости/органы) по толщине блока вдоль пути. */
+	bool PenetrateBody(const FHitResult& Hit, APBLMaterialBlock* Block);
 	void Finish(bool bHit, const FHitResult* Hit);
 
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Visual;

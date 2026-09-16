@@ -24,6 +24,9 @@ public:
 	const FPBLMaterialData* FindMaterial(FName Name) const { return Materials.Find(Name); }
 	const TMap<FName, FPBLMaterialData>& AllMaterials() const { return Materials; }
 	const TArray<FPBLGelReference>& GelReferences() const { return References; }
+	/** Слои части тела (BodyLayers.csv), в порядке прохождения спереди назад; nullptr если части нет. */
+	const TArray<FPBLBodyLayer>* FindBodyPart(FName Part) const { return BodyParts.Find(Part); }
+	const TMap<FName, TArray<FPBLBodyLayer>>& AllBodyParts() const { return BodyParts; }
 
 	/** Перечитать CSV (консоль: pbl.Data.Reload). */
 	void Reload();
@@ -34,4 +37,5 @@ private:
 	TMap<FName, FPBLFirearmData> Firearms;
 	TMap<FName, FPBLMaterialData> Materials;
 	TArray<FPBLGelReference> References;
+	TMap<FName, TArray<FPBLBodyLayer>> BodyParts;
 };

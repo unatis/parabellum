@@ -22,6 +22,7 @@ public:
 	APBLMaterialBlock();
 
 	FName GetMaterialName() const { return MaterialName; }
+	FName GetBodyPart() const { return BodyPart; }
 	UStaticMeshComponent* GetBlock() const { return Block; }
 
 	/** Сервер: добавить канал и разослать. Глубины в см, диаметры в мм. */
@@ -48,6 +49,8 @@ protected:
 	int32 ChannelCount = 0;
 
 	// --- Config ---
+	/** Часть тела из Content/Data/BodyLayers.csv (пусто = однородный блок MaterialName). Пуля идёт по стеку слоёв. */
+	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") FName BodyPart;
 	/** Имя материала из Content/Data/Materials.csv. */
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") FName MaterialName = TEXT("Gel10");
 	/** Размер блока, см (X - вдоль выстрела = толщина слоя). */

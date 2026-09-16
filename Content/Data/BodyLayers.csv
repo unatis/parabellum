@@ -1,0 +1,41 @@
+Part,Order,Material,Thickness_mm,Coverage,P1,P2,Notes
+Head,1,Skin,3,Full,,,"Скальп"
+Head,2,CorticalBone,7,Full,,,"Свод черепа 6-8 мм"
+Head,3,Brain,0,Full,,,"Заполняет остаток"
+Head,4,CorticalBone,7,Full,,,"Череп, выход"
+Head,5,Skin,3,Full,,,
+Neck,1,Skin,2,Full,,,
+Neck,2,Muscle,0,Full,,,
+Neck,3,Skin,2,Full,,,
+Torso,1,Skin,2,Full,,,
+Torso,2,Fat,15,Full,,,"Средняя подкожная клетчатка"
+Torso,3,Muscle,20,Full,,,"Грудные/спинные мышцы"
+Torso,4,SpongyBone,8,BandsZ,45,20,"Рёбра: полоса кости 20 мм каждые 45 мм по высоте (~45% покрытия)"
+Torso,5,Lung,0,Full,,,"Грудная полость: лёгкое (верх), см. Viscera для низа - пока лёгкое"
+Torso,6,SpongyBone,8,BandsZ,45,20,"Рёбра сзади"
+Torso,7,Muscle,20,Full,,,
+Torso,8,Fat,15,Full,,,
+Torso,9,Skin,2,Full,,,
+Pelvis,1,Skin,2,Full,,,
+Pelvis,2,Fat,20,Full,,,
+Pelvis,3,Muscle,20,Full,,,
+Pelvis,4,Viscera,0,Full,,,"Кишечник/мочевой пузырь; таз как кость - позже"
+Pelvis,5,Muscle,20,Full,,,
+Pelvis,6,Fat,20,Full,,,
+Pelvis,7,Skin,2,Full,,,
+Arm,1,Skin,2,Full,,,
+Arm,2,Fat,6,Full,,,
+Arm,3,Muscle,0,Full,,,"Заполняет остаток вокруг кости"
+Arm,4,CorticalBone,5,Core,12,,"Плечевая кость: стержень радиусом 12 мм по оси, кортикал 5 мм с обеих сторон"
+Arm,5,SpongyBone,14,Core,12,,"Костный мозг"
+Arm,6,CorticalBone,5,Core,12,,
+Arm,7,Fat,6,Full,,,
+Arm,8,Skin,2,Full,,,
+Leg,1,Skin,2,Full,,,
+Leg,2,Fat,10,Full,,,
+Leg,3,Muscle,0,Full,,,
+Leg,4,CorticalBone,6,Core,16,,"Бедренная кость: радиус 16 мм, кортикал 6 мм"
+Leg,5,SpongyBone,20,Core,16,,
+Leg,6,CorticalBone,6,Core,16,,
+Leg,7,Fat,10,Full,,,
+Leg,8,Skin,2,Full,,,

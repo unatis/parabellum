@@ -86,17 +86,17 @@ PANELS = [("Drywall", 1.27, "/Game/Range/M_PanelDrywall"), ("Plywood", 1.8, "/Ga
 PANEL_W = 60
 PANEL_GAP = 30
 # Гелевая кукла (E10.6/E10.7-заготовка): человек 176 см из блоков геля 10%, на 5 м от PS4, лицом к стрелку.
-# (имя, размер (глубина X, ширина Y, высота Z) см, центр (y, z) см)
+# (имя, размер (глубина X, ширина Y, высота Z) см, центр (y, z) см, часть тела из BodyLayers.csv - слои внутри; None = однородный гель)
 GEL_DUMMY_DIST_M = 5
 GEL_DUMMY_PARTS = [
-    ("Head",  (20, 16, 23), (0, 164)),
-    ("Neck",  (11, 11, 8),  (0, 149)),
-    ("Torso", (24, 38, 60), (0, 115)),
-    ("Pelvis",(24, 36, 22), (0, 74)),
-    ("ArmL",  (10, 10, 62), (26, 112)),
-    ("ArmR",  (10, 10, 62), (-26, 112)),
-    ("LegL",  (14, 15, 63), (10, 31)),
-    ("LegR",  (14, 15, 63), (-10, 31)),
+    ("Head",  (20, 16, 23), (0, 164), "Head"),
+    ("Neck",  (11, 11, 8),  (0, 149), "Neck"),
+    ("Torso", (24, 38, 60), (0, 115), "Torso"),
+    ("Pelvis",(24, 36, 22), (0, 74),  "Pelvis"),
+    ("ArmL",  (10, 10, 62), (26, 112), "Arm"),
+    ("ArmR",  (10, 10, 62), (-26, 112), "Arm"),
+    ("LegL",  (14, 15, 63), (10, 31), "Leg"),
+    ("LegR",  (14, 15, 63), (-10, 31), "Leg"),
 ]
 GEL_STAND_H = 158   # Ñ†ÐµÐ½Ñ‚Ñ€ Ð±Ð»Ð¾ÐºÐ° (+7.5) Ð½Ð° Ð²Ñ‹ÑÐ¾Ñ‚Ðµ Ð´ÑƒÐ»Ð° Ð¿Ñ€Ð¸ ÑÑ‚Ñ€ÐµÐ»ÑŒÐ±Ðµ Ð³Ð¾Ñ€Ð¸Ð·Ð¾Ð½Ñ‚Ð°Ð»ÑŒÐ½Ð¾ Ñ PS4 (Ð³Ð»Ð°Ð·Ð° 165, Ð´ÑƒÐ»Ð¾ ~165 ÑÐ¼)
 
@@ -264,10 +264,12 @@ def main():
 
     # Гелевая кукла: каждая часть - PBLMaterialBlock Gel10 (канал раны виден внутри).
     gx = 2100 + GEL_DUMMY_DIST_M * 100
-    for name, size, (py, pz) in GEL_DUMMY_PARTS:
+    for name, size, (py, pz), part in GEL_DUMMY_PARTS:
         blk = spawn(unreal.PBLMaterialBlock, (gx, py, pz), (0, 0, 0), f"GelDummy_{name}", "Range")
         blk.set_editor_property("material_name", unreal.Name("Gel10"))
         blk.set_editor_property("size", unreal.Vector(*size))
+        if part:
+            blk.set_editor_property("body_part", unreal.Name(part))
     log(f"gel dummy: {len(GEL_DUMMY_PARTS)} parts at {GEL_DUMMY_DIST_M} m")
 
     for d in LANE_MARKS:

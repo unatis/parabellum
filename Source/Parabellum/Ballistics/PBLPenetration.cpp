@@ -82,6 +82,54 @@ FPBLPenetrationResult PBLPenetration::PassLayer(const FPBLCartridgeData& C, cons
 	return Penetrate(C, M, V_in_mps, Path_m);
 }
 
+TArray<PBLPenetration::FResolvedLayer> PBLPenetration::ResolveBodyStack(const TArray<FPBLBodyLayer>& Layers, const TMap<FName, FPBLMaterialData>& Materials,
+	float PathThickness_m, float ZFromCenter_m, float LateralFromAxis_m)
+{
+	TArray<FResolvedLayer> Out;
+	float Fixed = 0.0f; int32 FillIdx = -1;
+	for (const FPBLBodyLayer& L : Layers)
+	{
+		FResolvedLayer R;
+		R.Material = Materials.Find(L.Material);
+		R.Name = L.Material;
+		if (!R.Material) { continue; }
+		bool bPresent = true;
+		if (L.Coverage == EPBLLayerCoverage::BandsZ && L.P1 > 0.0f)
+		{
+			const float Phase = FMath::Fmod(FMath::Abs(ZFromCenter_m), L.P1);
+			bPresent = Phase < L.P2;
+		}
+		else if (L.Coverage == EPBLLayerCoverage::Core)
+		{
+			bPresent = FMath::Abs(LateralFromAxis_m) < L.P1;
+		}
+		if (!bPresent) { continue; }
+		R.Thickness_m = L.Thickness_m;
+		if (L.Thickness_m <= 0.0f) { FillIdx = Out.Num(); } else { Fixed += L.Thickness_m; }
+		Out.Add(R);
+	}
+	// Заполняющий слой берёт остаток; если фиксированные слои толще геометрии - масштабируем все.
+	if (FillIdx >= 0) { Out[FillIdx].Thickness_m = FMath::Max(PathThickness_m - Fixed, 0.001f); }
+	else if (Fixed > PathThickness_m && Fixed > 0.0f) { for (FResolvedLayer& R : Out) { R.Thickness_m *= PathThickness_m / Fixed; } }
+	return Out;
+}
+
+void PBLPenetration::PassBody(const FPBLCartridgeData& C, const TArray<FResolvedLayer>& Stack, float V_in_mps, TArray<FLayerPass>& Out)
+{
+	float V = V_in_mps;
+	for (const FResolvedLayer& L : Stack)
+	{
+		if (V <= StopVelocity_mps) { break; }
+		FLayerPass P;
+		P.Material = L.Name; P.Thickness_m = L.Thickness_m; P.V_in = V;
+		const FPBLPenetrationResult R = Penetrate(C, *L.Material, V, L.Thickness_m);
+		P.V_out = R.ExitVelocity_mps; P.Depth_m = R.Depth_m; P.bStopped = R.bStopped; P.FinalDiameter_m = R.FinalDiameter_m;
+		Out.Add(P);
+		V = R.ExitVelocity_mps;
+		if (R.bStopped) { break; }
+	}
+}
+
 bool PBLPenetration::ShouldRicochet(const FPBLMaterialData& M, float AngleFromNormal_rad, bool bPerforated)
 {
 	if (bPerforated || M.RicochetAngleDeg <= 0.0f) { return false; }
@@ -181,4 +229,36 @@ static FAutoConsoleCommandWithWorldAndArgs CmdLayer(
 			*C->Name.ToString(), *M->Name.ToString(), Th * 1000.0f, FMath::RadiansToDegrees(Ang), V, V / 0.3048f,
 			R.bStopped ? *FString::Printf(TEXT("STOPPED (depth %.1f mm)"), R.Depth_m * 1000.0f) : *FString::Printf(TEXT("EXIT %.1f m/s (%.0f fps)"), R.ExitVelocity_mps, R.ExitVelocity_mps / 0.3048f),
 			R.EnergyDeposited_J, PBLPenetration::ShouldRicochet(*M, Ang, !R.bStopped) ? TEXT(", RICOCHET") : TEXT(""));
+	}));
+
+// pbl.Ballistics.Body <firearm|cartridge> <part> <thickness_mm> [z_from_center_cm] [lateral_cm] [V_mps] - прогон по слоям части тела
+static FAutoConsoleCommandWithWorldAndArgs CmdBody(
+	TEXT("pbl.Ballistics.Body"),
+	TEXT("Pass through a body part layer stack: pbl.Ballistics.Body <firearm|cartridge> <part> <thickness_mm> [z_cm] [lateral_cm] [V_mps]"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() < 3 || !World || !World->GetGameInstance()) { UE_LOG(LogTemp, Warning, TEXT("usage: pbl.Ballistics.Body <firearm|cartridge> <part> <thickness_mm> [z_cm] [lateral_cm] [V]")); return; }
+		UPBLWeaponDataSubsystem* Data = World->GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>();
+		if (!Data) { return; }
+		float V = 0.0f;
+		const FPBLCartridgeData* C = ResolveCartridge(Data, Args[0], V);
+		const TArray<FPBLBodyLayer>* Layers = Data->FindBodyPart(FName(*Args[1]));
+		if (!C || !Layers) { UE_LOG(LogTemp, Warning, TEXT("pbl.Ballistics.Body: cartridge or body part not found")); return; }
+		const float Th = FCString::Atof(*Args[2]) / 1000.0f;
+		const float Z = Args.Num() > 3 ? FCString::Atof(*Args[3]) / 100.0f : 0.0f;
+		const float Lat = Args.Num() > 4 ? FCString::Atof(*Args[4]) / 100.0f : 0.0f;
+		if (Args.Num() > 5) { V = FCString::Atof(*Args[5]); }
+		const TArray<PBLPenetration::FResolvedLayer> Stack = PBLPenetration::ResolveBodyStack(*Layers, Data->AllMaterials(), Th, Z, Lat);
+		TArray<PBLPenetration::FLayerPass> Passes;
+		PBLPenetration::PassBody(*C, Stack, V, Passes);
+		UE_LOG(LogTemp, Display, TEXT("BODY %s -> %s %.0f mm (z %+.0f cm, lateral %.0f cm): V_in %.1f m/s"), *C->Name.ToString(), *Args[1], Th * 1000.0f, Z * 100.0f, Lat * 100.0f, V);
+		float Total = 0.0f;
+		for (const auto& P : Passes)
+		{
+			Total += P.Depth_m;
+			UE_LOG(LogTemp, Display, TEXT("BODY   %-13s %6.1f mm  %6.1f -> %s"), *P.Material.ToString(), P.Thickness_m * 1000.0f, P.V_in,
+				P.bStopped ? *FString::Printf(TEXT("STOPPED at %.1f mm into layer"), P.Depth_m * 1000.0f) : *FString::Printf(TEXT("%6.1f m/s"), P.V_out));
+		}
+		const bool bExit = Passes.Num() > 0 && !Passes.Last().bStopped;
+		UE_LOG(LogTemp, Display, TEXT("BODY   total path %.1f mm, %s"), Total * 1000.0f, bExit ? *FString::Printf(TEXT("EXIT %.1f m/s"), Passes.Last().V_out) : TEXT("STOPPED"));
 	}));

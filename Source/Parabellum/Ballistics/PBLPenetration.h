@@ -45,6 +45,18 @@ namespace PBLPenetration
 	/** Общий вход: слой любого материала (Понселе или THOR). Толщина - по нормали; путь в среде = толщина / cos(угол). */
 	PARABELLUM_API FPBLPenetrationResult PassLayer(const FPBLCartridgeData& C, const FPBLMaterialData& M, float V_in_mps, float Thickness_m, float AngleFromNormal_rad);
 
+	/** Разрешённый слой тела: материал и толщина по пути. */
+	struct FResolvedLayer { const FPBLMaterialData* Material = nullptr; FName Name; float Thickness_m = 0.0f; };
+	/** Один пройденный слой (для лога/канала). */
+	struct FLayerPass { FName Material; float Thickness_m = 0.0f; float V_in = 0.0f; float V_out = 0.0f; float Depth_m = 0.0f; bool bStopped = false; float FinalDiameter_m = 0.0f; };
+
+	/** Стек слоёв части тела для конкретного попадания: полная толщина по пути, полосы/стержень по точке входа.
+	 *  ZFromCenter_m - высота входа относительно центра части; LateralFromAxis_m - боковое смещение пути от оси части. */
+	PARABELLUM_API TArray<FResolvedLayer> ResolveBodyStack(const TArray<FPBLBodyLayer>& Layers, const TMap<FName, FPBLMaterialData>& Materials,
+		float PathThickness_m, float ZFromCenter_m, float LateralFromAxis_m);
+	/** Прогон стека: слои по очереди, каждый - PassLayer по своей толщине (угол уже учтён в толщине пути). */
+	PARABELLUM_API void PassBody(const FPBLCartridgeData& C, const TArray<FResolvedLayer>& Stack, float V_in_mps, TArray<FLayerPass>& Out);
+
 	/** Рикошет: непробившая пуля при угле к поверхности <= M.RicochetAngleDeg. AngleFromNormal - рад. */
 	PARABELLUM_API bool ShouldRicochet(const FPBLMaterialData& M, float AngleFromNormal_rad, bool bPerforated);
 }

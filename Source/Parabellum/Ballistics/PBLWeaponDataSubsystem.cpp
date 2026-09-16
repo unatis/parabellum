@@ -48,6 +48,7 @@ void UPBLWeaponDataSubsystem::Reload()
 	Firearms.Reset();
 	Materials.Reset();
 	References.Reset();
+	BodyParts.Reset();
 	auto Num = [](const TMap<FString, FString>& R, const TCHAR* Key, float Default = 0.0f) { const FString* V = R.Find(Key); return (V && !V->IsEmpty()) ? FCString::Atof(**V) : Default; };
 	const FString Dir = FPaths::ProjectContentDir() / TEXT("Data");
 
@@ -143,8 +144,26 @@ void UPBLWeaponDataSubsystem::Reload()
 		}
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references from %s"),
-		Cartridges.Num(), Firearms.Num(), Materials.Num(), References.Num(), *Dir);
+	Rows.Reset();
+	if (ReadCsv(Dir / TEXT("BodyLayers.csv"), Rows))
+	{
+		TArray<TPair<int32, FName>> Keys;
+		for (const auto& R : Rows)
+		{
+			const FName Part(*R.FindRef(TEXT("Part")));
+			if (Part.IsNone()) { continue; }
+			FPBLBodyLayer L;
+			L.Material = FName(*R.FindRef(TEXT("Material")));
+			L.Thickness_m = Num(R, TEXT("Thickness_mm")) / 1000.0f;
+			const FString Cov = R.FindRef(TEXT("Coverage"));
+			L.Coverage = Cov.Equals(TEXT("BandsZ"), ESearchCase::IgnoreCase) ? EPBLLayerCoverage::BandsZ : Cov.Equals(TEXT("Core"), ESearchCase::IgnoreCase) ? EPBLLayerCoverage::Core : EPBLLayerCoverage::Full;
+			L.P1 = Num(R, TEXT("P1")) / 1000.0f;
+			L.P2 = Num(R, TEXT("P2")) / 1000.0f;
+			BodyParts.FindOrAdd(Part).Add(L);   // строки в CSV идут по порядку Order
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references, %d body parts from %s"),
+		Cartridges.Num(), Firearms.Num(), Materials.Num(), References.Num(), BodyParts.Num(), *Dir);
 }
 
 static FAutoConsoleCommandWithWorld CmdDataReload(TEXT("pbl.Data.Reload"), TEXT("Reload Content/Data/*.csv"),

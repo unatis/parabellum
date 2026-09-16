@@ -99,6 +99,22 @@ struct FPBLMaterialData
 	bool IsThor() const { return Model == TEXT("THOR"); }
 };
 
+/** Слой части тела (Content/Data/BodyLayers.csv). Thickness 0 = заполняет остаток геометрической толщины. */
+UENUM()
+enum class EPBLLayerCoverage : uint8 { Full, BandsZ, Core };
+
+USTRUCT()
+struct FPBLBodyLayer
+{
+	GENERATED_BODY()
+	UPROPERTY() FName Material;
+	UPROPERTY() float Thickness_m = 0.0f;
+	/** Full - весь слой; BandsZ - полосы по высоте (P1 период, P2 ширина кости, м); Core - стержень по оси части (P1 радиус, м). */
+	UPROPERTY() EPBLLayerCoverage Coverage = EPBLLayerCoverage::Full;
+	UPROPERTY() float P1 = 0.0f;
+	UPROPERTY() float P2 = 0.0f;
+};
+
 /** Эталонная строка (Content/Data/Reference_Gel.csv) для автосверки pbl.Ballistics.GelCheck. */
 struct FPBLGelReference
 {

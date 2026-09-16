@@ -97,6 +97,7 @@ void APBLProjectile::OnImpact(const FHitResult& Hit)
 	if (!bPawn)
 	{
 		APBLMaterialBlock* Block = Cast<APBLMaterialBlock>(Hit.GetActor());
+		if (Block && !Block->GetBodyPart().IsNone()) { if (PenetrateBody(Hit, Block)) { return; } }
 		if (PenetrateLayer(Hit, Block ? Block->GetMaterialName() : DefaultWorldMaterial, Block)) { return; }
 	}
 	if (bAuthoritative && IsValid(Weapon))
@@ -193,6 +194,73 @@ bool APBLProjectile::PenetrateLayer(const FHitResult& Hit, const FName MaterialN
 	return true;
 }
 
+bool APBLProjectile::PenetrateBody(const FHitResult& Hit, APBLMaterialBlock* Block)
+{
+	UPBLWeaponDataSubsystem* Data = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
+	const TArray<FPBLBodyLayer>* PartLayers = Data ? Data->FindBodyPart(Block->GetBodyPart()) : nullptr;
+	UPrimitiveComponent* Comp = Hit.GetComponent();
+	if (!PartLayers || !Comp) { return false; }
+
+	const FVector Dir = State.Velocity.GetSafeNormal();
+	const float Vin = State.Velocity.Size();
+	const FVector Entry = Hit.ImpactPoint;
+	const float Far = Comp->Bounds.SphereRadius * 2.0f + 50.0f;
+	FHitResult ExitHit;
+	float Path_m = 0.0f;
+	if (Comp->LineTraceComponent(ExitHit, Entry + Dir * Far, Entry + Dir * 0.05f, FCollisionQueryParams(SCENE_QUERY_STAT(PBLBodyExit), true)))
+	{
+		Path_m = FVector::Dist(Entry, ExitHit.ImpactPoint) / 100.0f;
+	}
+	if (Path_m <= 0.0f) { return false; }
+	// Точка входа относительно части: высота от центра (полосы рёбер) и боковое смещение пути от вертикальной оси (кость конечности).
+	const FVector Center = Block->GetActorLocation();
+	const float ZFromCenter_m = (Entry.Z - Center.Z) / 100.0f;
+	const FVector Side = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
+	const float Lateral_m = FVector::DotProduct(Entry - Center, Side) / 100.0f;
+	const TArray<PBLPenetration::FResolvedLayer> Stack = PBLPenetration::ResolveBodyStack(*PartLayers, Data->AllMaterials(), Path_m, ZFromCenter_m, Lateral_m);
+	TArray<PBLPenetration::FLayerPass> Passes;
+	PBLPenetration::PassBody(Cartridge, Stack, Vin, Passes);
+	if (Passes.Num() == 0) { return false; }
+
+	float Depth_m = 0.0f;
+	FString Summary;
+	for (const auto& P : Passes)
+	{
+		if (bAuthoritative) { Block->AddChannel(Entry + Dir * (Depth_m * 100.0f), Dir, P.Depth_m * 100.0f, 0.0f, Cartridge.Diameter_m * 1000.0f, P.FinalDiameter_m * 1000.0f, !P.bStopped); }
+		Depth_m += P.Depth_m;
+		Summary += FString::Printf(TEXT(" %s %.0fmm->%s"), *P.Material.ToString(), P.Thickness_m * 1000.0f, P.bStopped ? TEXT("stop") : *FString::Printf(TEXT("%.0f"), P.V_out));
+	}
+	const bool bStopped = Passes.Last().bStopped;
+	const float Vout = bStopped ? 0.0f : Passes.Last().V_out;
+	++PenLayers;
+	if (PenMaterial.IsNone())
+	{
+		PenMaterial = Block->GetBodyPart();
+		PenEntryV = Vin; Pen_m = Depth_m; PenExitV = Vout; PenFinalDia_m = Passes.Last().FinalDiameter_m; bPenStopped = bStopped;
+	}
+	if (bAuthoritative)
+	{
+		UE_LOG(LogTemp, Display, TEXT("PBL body: %s path %.0f mm (z %+.0f cm, lat %.0f cm): %.0f ->%s%s"), *Block->GetBodyPart().ToString(), Path_m * 1000.0f,
+			ZFromCenter_m * 100.0f, Lateral_m * 100.0f, Vin, *Summary, bStopped ? TEXT(" STOPPED") : TEXT(" EXIT"));
+		if (!IsValid(Weapon)) { Weapon = nullptr; }
+		if (Weapon) { Weapon->OnProjectileImpact(Hit, State.Velocity, 0.0f); }
+	}
+	const FVector StopPoint = Entry + Dir * (Depth_m * 100.0f);
+	if (bStopped)
+	{
+		State.Position = StopPoint / 100.0f;
+		State.Velocity = FVector::ZeroVector;
+		SetActorLocation(StopPoint);
+		FHitResult H = Hit;
+		Finish(true, &H);
+		return true;
+	}
+	State.Position = (StopPoint + Dir * 0.2f) / 100.0f;
+	State.Velocity = Dir * Vout;
+	SetActorLocation(StopPoint + Dir * 0.2f);
+	return true;
+}
+
 void APBLProjectile::Finish(bool bHit, const FHitResult* Hit)
 {
 	bDone = true;
@@ -201,7 +269,8 @@ void APBLProjectile::Finish(bool bHit, const FHitResult* Hit)
 		FPBLShotReport R;
 		R.V0_mps = V0;
 		R.Distance_m = (GetActorLocation() - LaunchOrigin).Size() / 100.0f;
-		R.ImpactVelocity_mps = bPenStopped ? PenEntryV : State.Velocity.Size();
+		// Скорость удара: вход в первый слой/цель, если он был; иначе текущая.
+		R.ImpactVelocity_mps = !PenMaterial.IsNone() ? PenEntryV : State.Velocity.Size();
 		R.ImpactEnergy_J = 0.5f * Cartridge.BulletMass_kg * R.ImpactVelocity_mps * R.ImpactVelocity_mps;
 		R.TimeOfFlight_s = State.Time;
 		// Отклонение от линии прицеливания: проекция вектора (удар - LOSOrigin) на перпендикуляр к LOS по вертикали.
