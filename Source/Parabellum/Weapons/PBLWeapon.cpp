@@ -251,8 +251,13 @@ void APBLWeapon::UpdateViewTransform()
 	const UPBLRecoilSettings& RS = UPBLRecoilSettings::Get();
 	// Поза = бедро + (прицел - бедро)·alpha (плавная кривая), плюс визуальная отдача: откат назад и задир сильнее камеры.
 	const float A = FMath::SmoothStep(0.0f, 1.0f, AimAlpha);
-	SetActorRelativeLocation(ViewOffset + AimOffset * A - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f));
-	SetActorRelativeRotation(ViewRotation + AimRotation * A + FRotator(FMath::RadiansToDegrees(Recoil.Pitch - Recoil.PitchRest) * RS.VisualPitchScale, 0.0f, 0.0f));
+	// Довороты (прицел, визуальная отдача) - вокруг глаза (точки крепления к камере), а не вокруг корня рига,
+	// который у рига рук лежит на 1.5 м ниже: иначе 3° превращаются в 8 см сдвига.
+	const FRotator Delta = AimRotation * A + FRotator(FMath::RadiansToDegrees(Recoil.Pitch - Recoil.PitchRest) * RS.VisualPitchScale, 0.0f, 0.0f);
+	const FQuat Q = Delta.Quaternion();
+	const FVector BaseLoc = ViewOffset + AimOffset * A - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f);
+	SetActorRelativeLocation(Q.RotateVector(BaseLoc));
+	SetActorRelativeRotation((Q * ViewRotation.Quaternion()).Rotator());
 }
 
 void APBLWeapon::SetAiming(bool bInAiming)
