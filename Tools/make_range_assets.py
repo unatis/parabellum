@@ -68,4 +68,20 @@ def make_channel():
 # (5.8, Lumen, RenderOffScreen) не рисуется вовсе - проверено скриншотами 2026-09-15.
 make_gel()
 make_channel()
+
+
+def make_panel(name, rgb, rough=0.8, metal=0.0):
+    mat, full = get_or_create(name)
+    mel.connect_material_property(const3(mat, rgb, -400, 0), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(const1(mat, rough, -400, 150), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(const1(mat, metal, -400, 250), "", unreal.MaterialProperty.MP_METALLIC)
+    mel.recompile_material(mat)
+    eal.save_loaded_asset(mat)
+    log(f"saved {full}")
+
+
+make_panel("M_PanelDrywall", (0.85, 0.85, 0.82), 0.9)
+make_panel("M_PanelPlywood", (0.65, 0.48, 0.28), 0.7)
+make_panel("M_PanelPine", (0.78, 0.62, 0.38), 0.75)
+make_panel("M_PanelSteel", (0.45, 0.46, 0.48), 0.35, 1.0)
 log("done")

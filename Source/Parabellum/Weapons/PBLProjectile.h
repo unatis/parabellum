@@ -6,7 +6,7 @@
 #include "PBLProjectile.generated.h"
 
 class APBLWeapon;
-class APBLGelBlock;
+class APBLMaterialBlock;
 class UStaticMeshComponent;
 
 /** Итог полёта пули - для отчёта стрелку, HUD и CSV. */
@@ -33,6 +33,8 @@ struct FPBLShotReport
 	UPROPERTY() float MediumExitVelocity_mps = 0.0f;
 	UPROPERTY() float FinalDiameter_mm = 0.0f;
 	UPROPERTY() bool bStoppedInMedium = false;
+	UPROPERTY() int32 Layers = 0;
+	UPROPERTY() int32 Ricochets = 0;
 };
 
 /**
@@ -57,8 +59,9 @@ public:
 
 protected:
 	void OnImpact(const FHitResult& Hit);
-	/** Попадание в блок среды: модель Понселе по толщине блока. true = пуля обработана (остановлена или прошла). */
-	bool PenetrateBlock(const FHitResult& Hit, APBLGelBlock* Block);
+	/** Попадание в слой материала (блок или геометрия мира): PassLayer по толщине вдоль пути, рикошет при скользящем угле.
+	 *  true = пуля обработана (остановлена, прошла или отскочила). */
+	bool PenetrateLayer(const FHitResult& Hit, const FName MaterialName, APBLMaterialBlock* Block);
 	void Finish(bool bHit, const FHitResult* Hit);
 
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Visual;
@@ -76,6 +79,9 @@ protected:
 	FName PenMaterial;
 	float Pen_m = 0.0f, PenEntryV = 0.0f, PenExitV = 0.0f, PenFinalDia_m = 0.0f;
 	bool bPenStopped = false;
+	int32 PenLayers = 0, PenRicochets = 0;
+	/** Материал геометрии мира без блока (стены/пол полигона). */
+	FName DefaultWorldMaterial = TEXT("Concrete");
 	/** Первый сегмент трассера рисуем от видимого дула оружия. */
 	bool bFirstTracer = true;
 

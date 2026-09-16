@@ -78,7 +78,26 @@ LANE_TARGETS = [25, 50, 100, 200, 300]  # Ð¼, Ñ‰Ð¸Ñ‚Ñ‹ 1x1.5 Ð¼
 LANE_MARKS = list(range(25, 301, 25))
 
 # Ð‘Ð»Ð¾Ðº Ð³ÐµÐ»Ñ (E10.6): Ð¿Ñ€Ð¾Ñ‚Ð¾ÐºÐ¾Ð» FBI - 10 ft (3 Ð¼) Ð¾Ñ‚ Ð´ÑƒÐ»Ð°. PS4 (2100,0) ÑÐ¼Ð¾Ñ‚Ñ€Ð¸Ñ‚ Ð½Ð° Ð²Ð¾ÑÑ‚Ð¾Ðº Ð²Ð´Ð¾Ð»ÑŒ Ð¿Ð¾Ð»Ð¾ÑÑ‹.
-GEL_BLOCKS = [(2100 + 300 + 50, 0)]   # Ñ†ÐµÐ½Ñ‚Ñ€ Ð±Ð»Ð¾ÐºÐ° 100 ÑÐ¼ Ð´Ð»Ð¸Ð½Ð¾Ð¹: Ð±Ð»Ð¸Ð¶Ð½ÑÑ Ð³Ñ€Ð°Ð½ÑŒ Ð½Ð° 3 Ð¼ Ð¾Ñ‚ PS4
+GEL_BLOCKS = [(2100 + 300 + 50, 150)]   # ближняя грань на 3 м от PS4, смещён вправо (y=+150), чтобы не закрывать куклу на 5 м; с PS4 - yaw ~27°
+# Стойка материалов (E10.6c): панели 60x60 см на 10 м от PS4, центр на высоте дула. (материал CSV, толщина см, ширина см, вид)
+PANEL_DIST_M = 10
+PANELS = [("Drywall", 1.27, "/Game/Range/M_PanelDrywall"), ("Plywood", 1.8, "/Game/Range/M_PanelPlywood"),
+          ("Pine", 10.0, "/Game/Range/M_PanelPine"), ("MildSteel", 0.5, "/Game/Range/M_PanelSteel")]
+PANEL_W = 60
+PANEL_GAP = 30
+# Гелевая кукла (E10.6/E10.7-заготовка): человек 176 см из блоков геля 10%, на 5 м от PS4, лицом к стрелку.
+# (имя, размер (глубина X, ширина Y, высота Z) см, центр (y, z) см)
+GEL_DUMMY_DIST_M = 5
+GEL_DUMMY_PARTS = [
+    ("Head",  (20, 16, 23), (0, 164)),
+    ("Neck",  (11, 11, 8),  (0, 149)),
+    ("Torso", (24, 38, 60), (0, 115)),
+    ("Pelvis",(24, 36, 22), (0, 74)),
+    ("ArmL",  (10, 10, 62), (26, 112)),
+    ("ArmR",  (10, 10, 62), (-26, 112)),
+    ("LegL",  (14, 15, 63), (10, 31)),
+    ("LegR",  (14, 15, 63), (-10, 31)),
+]
 GEL_STAND_H = 158   # Ñ†ÐµÐ½Ñ‚Ñ€ Ð±Ð»Ð¾ÐºÐ° (+7.5) Ð½Ð° Ð²Ñ‹ÑÐ¾Ñ‚Ðµ Ð´ÑƒÐ»Ð° Ð¿Ñ€Ð¸ ÑÑ‚Ñ€ÐµÐ»ÑŒÐ±Ðµ Ð³Ð¾Ñ€Ð¸Ð·Ð¾Ð½Ñ‚Ð°Ð»ÑŒÐ½Ð¾ Ñ PS4 (Ð³Ð»Ð°Ð·Ð° 165, Ð´ÑƒÐ»Ð¾ ~165 ÑÐ¼)
 
 PLAYER_STARTS = [(-1700, -1700, 100, 45), (1700, 1700, 100, -135), (-1700, 1700, 100, -45), (1700, -700, 100, 135), (2100, 0, 100, 0)]
@@ -219,8 +238,37 @@ def main():
         st = spawn(unreal.StaticMeshActor, (x, y, GEL_STAND_H / 2), (0, 0, 0), f"Gel_Stand_{i}", "Range")
         st.static_mesh_component.set_static_mesh(cube)
         st.set_actor_scale3d(unreal.Vector(0.3, 0.3, GEL_STAND_H / 100.0))
-        spawn(unreal.PBLGelBlock, (x, y, GEL_STAND_H + 7.5), (0, 0, 0), f"GelBlock_{i}", "Range")
+        spawn(unreal.PBLMaterialBlock, (x, y, GEL_STAND_H + 7.5), (0, 0, 0), f"GelBlock_{i}", "Range")
     log(f"gel blocks: {len(GEL_BLOCKS)}")
+
+    # Панели материалов: в ряд поперёк полосы, каждая на своей стойке, подпись над панелью.
+    px = 2100 + PANEL_DIST_M * 100
+    total = len(PANELS) * PANEL_W + (len(PANELS) - 1) * PANEL_GAP
+    for i, (mat, thick, look) in enumerate(PANELS):
+        py = -total / 2 + PANEL_W / 2 + i * (PANEL_W + PANEL_GAP)
+        st = spawn(unreal.StaticMeshActor, (px, py, (GEL_STAND_H - 30) / 2), (0, 0, 0), f"Panel_Stand_{mat}", "Range")
+        st.static_mesh_component.set_static_mesh(cube)
+        st.set_actor_scale3d(unreal.Vector(0.1, 0.1, (GEL_STAND_H - 30) / 100.0))
+        blk = spawn(unreal.PBLMaterialBlock, (px, py, GEL_STAND_H + 7.5), (0, 0, 0), f"Panel_{mat}", "Range")
+        blk.set_editor_property("material_name", unreal.Name(mat))
+        blk.set_editor_property("size", unreal.Vector(thick, PANEL_W, PANEL_W))
+        lm = eal.load_asset(look)
+        if lm:
+            blk.set_editor_property("gel_material", lm)
+        t = spawn(unreal.TextRenderActor, (px, py, GEL_STAND_H + 7.5 + PANEL_W / 2 + 12), (0, 180, 0), f"Panel_Label_{mat}", "Range")
+        tr = t.text_render
+        tr.set_text(unreal.Text(f"{mat} {thick*10:g} mm"))
+        tr.set_editor_property("world_size", 10.0)
+        tr.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
+    log(f"material panels: {len(PANELS)} at {PANEL_DIST_M} m")
+
+    # Гелевая кукла: каждая часть - PBLMaterialBlock Gel10 (канал раны виден внутри).
+    gx = 2100 + GEL_DUMMY_DIST_M * 100
+    for name, size, (py, pz) in GEL_DUMMY_PARTS:
+        blk = spawn(unreal.PBLMaterialBlock, (gx, py, pz), (0, 0, 0), f"GelDummy_{name}", "Range")
+        blk.set_editor_property("material_name", unreal.Name("Gel10"))
+        blk.set_editor_property("size", unreal.Vector(*size))
+    log(f"gel dummy: {len(GEL_DUMMY_PARTS)} parts at {GEL_DUMMY_DIST_M} m")
 
     for d in LANE_MARKS:
         t = spawn(unreal.TextRenderActor, (LANE_START_X + d * 100, LANE_W / 2 - 60, 200), (0, -90, 0), f"Lane_Label_{d}", "Lane")

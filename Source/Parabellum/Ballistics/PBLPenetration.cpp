@@ -18,7 +18,8 @@ FPBLPenetrationResult PBLPenetration::Penetrate(const FPBLCartridgeData& C, cons
 
 	float V = V_in_mps;
 	float S = 0.0f;
-	float Dia = D0, Cd = C.MediumCd, Mass = M0;
+	const float CdScale = M.MediumCdScale > 0.0f ? M.MediumCdScale : 1.0f;
+	float Dia = D0, Cd = C.MediumCd * CdScale, Mass = M0;
 	R.bExpanded = bExpands;
 	int32 Guard = 0;
 	while (V > StopVelocity_mps && ++Guard < 200000)
@@ -27,14 +28,14 @@ FPBLPenetrationResult PBLPenetration::Penetrate(const FPBLCartridgeData& C, cons
 		{
 			const float F = FMath::Clamp(S / FMath::Max(C.ExpansionDepth_m, 1e-4f), 0.0f, 1.0f);
 			Dia = FMath::Lerp(D0, C.ExpandedDiameter_m, F);
-			Cd = FMath::Lerp(C.MediumCd, C.ExpandedCd, F);
+			Cd = FMath::Lerp(C.MediumCd, C.ExpandedCd, F) * CdScale;
 			Mass = M0 * FMath::Lerp(1.0f, C.RetainedMassFraction, F);
 		}
 		else if (bYaws && S > C.YawOnsetDepth_m)
 		{
 			if (R.YawDepth_m < 0.0f) { R.YawDepth_m = S; }
 			const float F = FMath::Clamp((S - C.YawOnsetDepth_m) / YawTransition_m, 0.0f, 1.0f);
-			Cd = FMath::Lerp(C.MediumCd, C.YawedCd, F);
+			Cd = FMath::Lerp(C.MediumCd, C.YawedCd, F) * CdScale;
 		}
 		const float A = PI * 0.25f * Dia * Dia;
 		const float dV = -A * (a + Cd * Rho * V * V) / (Mass * V) * dS_m;
@@ -49,6 +50,43 @@ FPBLPenetrationResult PBLPenetration::Penetrate(const FPBLCartridgeData& C, cons
 	R.FinalMass_kg = Mass;
 	R.EnergyDeposited_J = 0.5f * M0 * V_in_mps * V_in_mps - 0.5f * Mass * R.ExitVelocity_mps * R.ExitVelocity_mps;
 	return R;
+}
+
+float PBLPenetration::ThorResidualVelocity(const FPBLCartridgeData& C, const FPBLMaterialData& M, float V_in_mps, float Thickness_m, float AngleFromNormal_rad)
+{
+	// Имперские единицы THOR: h [in], A [in^2], m [gr], V [fps].
+	const float h_in = Thickness_m / 0.0254f;
+	const float A_in2 = C.FrontalArea_m2() / (0.0254f * 0.0254f);
+	const float m_gr = C.BulletMass_kg / 0.00006479891f;
+	const float V_fps = V_in_mps / 0.3048f;
+	const float Sec = 1.0f / FMath::Max(FMath::Cos(AngleFromNormal_rad), 0.05f);
+	const float Loss = FMath::Pow(10.0f, M.Thor_c) * FMath::Pow(h_in * A_in2, M.Thor_alpha) * FMath::Pow(m_gr, M.Thor_beta) * FMath::Pow(Sec, M.Thor_gamma) * FMath::Pow(V_fps, M.Thor_lambda);
+	const float Vr_fps = V_fps - Loss;
+	return Vr_fps > 0.0f ? Vr_fps * 0.3048f : 0.0f;
+}
+
+FPBLPenetrationResult PBLPenetration::PassLayer(const FPBLCartridgeData& C, const FPBLMaterialData& M, float V_in_mps, float Thickness_m, float AngleFromNormal_rad)
+{
+	const float Path_m = Thickness_m / FMath::Max(FMath::Cos(AngleFromNormal_rad), 0.05f);
+	if (M.IsThor())
+	{
+		FPBLPenetrationResult R;
+		R.ExitVelocity_mps = ThorResidualVelocity(C, M, V_in_mps, Thickness_m, AngleFromNormal_rad);
+		R.bStopped = R.ExitVelocity_mps <= 0.0f;
+		R.Depth_m = R.bStopped ? FMath::Min(Path_m, 0.5f * Path_m) : Path_m;   // в непробитой плите глубина условна
+		R.FinalDiameter_m = C.Diameter_m;
+		R.FinalMass_kg = C.BulletMass_kg;
+		R.EnergyDeposited_J = 0.5f * C.BulletMass_kg * (V_in_mps * V_in_mps - R.ExitVelocity_mps * R.ExitVelocity_mps);
+		return R;
+	}
+	return Penetrate(C, M, V_in_mps, Path_m);
+}
+
+bool PBLPenetration::ShouldRicochet(const FPBLMaterialData& M, float AngleFromNormal_rad, bool bPerforated)
+{
+	if (bPerforated || M.RicochetAngleDeg <= 0.0f) { return false; }
+	const float AngleToSurfaceDeg = 90.0f - FMath::RadiansToDegrees(FMath::Abs(AngleFromNormal_rad));
+	return AngleToSurfaceDeg <= M.RicochetAngleDeg;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -120,4 +158,27 @@ static FAutoConsoleCommandWithWorld CmdGelCheck(
 				P.FinalDiameter_m * 1000.0f, G.ExpandedDiameter_m * 1000.0f, bOk ? TEXT("OK") : TEXT("FAIL"));
 		}
 		UE_LOG(LogTemp, Display, TEXT("GELCHECK  %d/%d within 5%%"), Pass, Total);
+	}));
+
+// pbl.Ballistics.Layer <firearm|cartridge> <material> <thickness_mm> [angle_from_normal_deg] [V_mps] - остаточная скорость за слоем
+static FAutoConsoleCommandWithWorldAndArgs CmdLayer(
+	TEXT("pbl.Ballistics.Layer"),
+	TEXT("Residual velocity behind a layer: pbl.Ballistics.Layer <firearm|cartridge> <material> <thickness_mm> [angle_deg] [V_mps]"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() < 3 || !World || !World->GetGameInstance()) { UE_LOG(LogTemp, Warning, TEXT("usage: pbl.Ballistics.Layer <firearm|cartridge> <material> <thickness_mm> [angle] [V]")); return; }
+		UPBLWeaponDataSubsystem* Data = World->GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>();
+		if (!Data) { return; }
+		float V = 0.0f;
+		const FPBLCartridgeData* C = ResolveCartridge(Data, Args[0], V);
+		const FPBLMaterialData* M = Data->FindMaterial(FName(*Args[1]));
+		if (!C || !M) { UE_LOG(LogTemp, Warning, TEXT("pbl.Ballistics.Layer: cartridge or material not found")); return; }
+		const float Th = FCString::Atof(*Args[2]) / 1000.0f;
+		const float Ang = Args.Num() > 3 ? FMath::DegreesToRadians(FCString::Atof(*Args[3])) : 0.0f;
+		if (Args.Num() > 4) { V = FCString::Atof(*Args[4]); }
+		const FPBLPenetrationResult R = PBLPenetration::PassLayer(*C, *M, V, Th, Ang);
+		UE_LOG(LogTemp, Display, TEXT("LAYER %s -> %s %.1f mm @ %.0f deg: V_in %.1f m/s (%.0f fps) -> %s, E deposited %.0f J%s"),
+			*C->Name.ToString(), *M->Name.ToString(), Th * 1000.0f, FMath::RadiansToDegrees(Ang), V, V / 0.3048f,
+			R.bStopped ? *FString::Printf(TEXT("STOPPED (depth %.1f mm)"), R.Depth_m * 1000.0f) : *FString::Printf(TEXT("EXIT %.1f m/s (%.0f fps)"), R.ExitVelocity_mps, R.ExitVelocity_mps / 0.3048f),
+			R.EnergyDeposited_J, PBLPenetration::ShouldRicochet(*M, Ang, !R.bStopped) ? TEXT(", RICOCHET") : TEXT(""));
 	}));

@@ -84,6 +84,19 @@ struct FPBLMaterialData
 	UPROPERTY() float Density_kgm3 = 1030.0f;
 	/** Статическая составляющая сопротивления (прочность), Па. */
 	UPROPERTY() float Strength_Pa = 160000.0f;
+	/** Множитель Cd пули в этой среде (твёрдые/хрупкие среды тормозят сильнее гладкого обтекания). */
+	UPROPERTY() float MediumCdScale = 1.0f;
+	/** THOR (BRL, 1961): V_r = V_s - 10^c * (h*A)^alpha * m^beta * (sec theta)^gamma * V_s^lambda; h [in], A [in^2], m [gr], V [fps]. */
+	UPROPERTY() float Thor_c = 0.0f;
+	UPROPERTY() float Thor_alpha = 0.0f;
+	UPROPERTY() float Thor_beta = 0.0f;
+	UPROPERTY() float Thor_gamma = 0.0f;
+	UPROPERTY() float Thor_lambda = 0.0f;
+	/** Угол к ПОВЕРХНОСТИ (град), при котором и ниже непробившая пуля рикошетит (0 = рикошета нет). */
+	UPROPERTY() float RicochetAngleDeg = 0.0f;
+	/** Доля скорости после рикошета. */
+	UPROPERTY() float RicochetRestitution = 0.5f;
+	bool IsThor() const { return Model == TEXT("THOR"); }
 };
 
 /** Эталонная строка (Content/Data/Reference_Gel.csv) для автосверки pbl.Ballistics.GelCheck. */

@@ -3,7 +3,7 @@
 #include "Ballistics/PBLBallistics.h"
 #include "Ballistics/PBLPenetration.h"
 #include "Ballistics/PBLWeaponDataSubsystem.h"
-#include "Range/PBLGelBlock.h"
+#include "Range/PBLMaterialBlock.h"
 #include "Engine/GameInstance.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -93,9 +93,11 @@ void APBLProjectile::Tick(float DeltaSeconds)
 
 void APBLProjectile::OnImpact(const FHitResult& Hit)
 {
-	if (APBLGelBlock* Block = Cast<APBLGelBlock>(Hit.GetActor()))
+	const bool bPawn = Hit.GetComponent() && Hit.GetComponent()->GetCollisionObjectType() == ECC_Pawn;
+	if (!bPawn)
 	{
-		if (PenetrateBlock(Hit, Block)) { return; }
+		APBLMaterialBlock* Block = Cast<APBLMaterialBlock>(Hit.GetActor());
+		if (PenetrateLayer(Hit, Block ? Block->GetMaterialName() : DefaultWorldMaterial, Block)) { return; }
 	}
 	if (bAuthoritative && IsValid(Weapon))
 	{
@@ -108,10 +110,10 @@ void APBLProjectile::OnImpact(const FHitResult& Hit)
 	Finish(true, &Hit);
 }
 
-bool APBLProjectile::PenetrateBlock(const FHitResult& Hit, APBLGelBlock* Block)
+bool APBLProjectile::PenetrateLayer(const FHitResult& Hit, const FName MaterialName, APBLMaterialBlock* Block)
 {
 	UPBLWeaponDataSubsystem* Data = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
-	const FPBLMaterialData* Mat = Data ? Data->FindMaterial(Block->GetMaterialName()) : nullptr;
+	const FPBLMaterialData* Mat = Data ? Data->FindMaterial(MaterialName) : nullptr;
 	UPrimitiveComponent* Comp = Hit.GetComponent();
 	if (!Mat || !Comp) { return false; }
 
@@ -126,21 +128,49 @@ bool APBLProjectile::PenetrateBlock(const FHitResult& Hit, APBLGelBlock* Block)
 	{
 		Thickness_m = FVector::Dist(Entry, ExitHit.ImpactPoint) / 100.0f;
 	}
-	const FPBLPenetrationResult R = PBLPenetration::Penetrate(Cartridge, *Mat, Vin, Thickness_m);
+	// Угол от нормали поверхности; толщина по нормали = путь * cos.
+	const float CosA = FMath::Abs(FVector::DotProduct(Dir, Hit.ImpactNormal));
+	const float AngleFromNormal = FMath::Acos(FMath::Clamp(CosA, 0.0f, 1.0f));
+	const float NormalThickness_m = Thickness_m * FMath::Max(CosA, 0.05f);
+	FPBLPenetrationResult R = (Thickness_m > 0.0f) ? PBLPenetration::PassLayer(Cartridge, *Mat, Vin, NormalThickness_m, AngleFromNormal)
+	                                              : PBLPenetration::Penetrate(Cartridge, *Mat, Vin, 0.0f);
+	++PenLayers;
+	// Рикошет: не пробила и угол к поверхности мал - отражаем с потерей скорости и небольшим случайным уводом.
+	if (PBLPenetration::ShouldRicochet(*Mat, AngleFromNormal, !R.bStopped))
+	{
+		++PenRicochets;
+		FVector NewDir = (Dir - 2.0f * FVector::DotProduct(Dir, Hit.ImpactNormal) * Hit.ImpactNormal).GetSafeNormal();
+		NewDir = FMath::VRandCone(NewDir, FMath::DegreesToRadians(3.0f));
+		const float Vout = Vin * Mat->RicochetRestitution;
+		if (bAuthoritative && Weapon) { Weapon->OnProjectileImpact(Hit, State.Velocity, 0.0f); }
+		UE_LOG(LogTemp, Display, TEXT("PBL ricochet: %s at %.0f deg to surface, %.0f -> %.0f m/s"), *MaterialName.ToString(),
+			90.0f - FMath::RadiansToDegrees(AngleFromNormal), Vin, Vout);
+		State.Position = (Hit.ImpactPoint + Hit.ImpactNormal * 0.5f) / 100.0f;
+		State.Velocity = NewDir * Vout;
+		SetActorLocation(Hit.ImpactPoint + Hit.ImpactNormal * 0.5f);
+		return true;
+	}
 	UE_LOG(LogTemp, Verbose, TEXT("PBL penetrate: %s entry %s dir %s V_in %.1f thickness %.3f m -> depth %.3f m %s"),
-		*Block->GetActorNameOrLabel(), *Entry.ToCompactString(), *Dir.ToCompactString(), Vin, Thickness_m, R.Depth_m, R.bStopped ? TEXT("stopped") : TEXT("exit"));
+		*MaterialName.ToString(), *Entry.ToCompactString(), *Dir.ToCompactString(), Vin, Thickness_m, R.Depth_m, R.bStopped ? TEXT("stopped") : TEXT("exit"));
 
-	if (PenMaterial.IsNone()) { PenMaterial = Mat->Name; PenEntryV = Vin; }
-	Pen_m += R.Depth_m;
-	PenExitV = R.ExitVelocity_mps;
-	PenFinalDia_m = R.FinalDiameter_m;
-	bPenStopped = R.bStopped;
+	// В отчёте - первый слой (то, во что стреляли): материал, глубина в нём, скорость на выходе; дальнейшие слои - счётчиком.
+	if (PenMaterial.IsNone())
+	{
+		PenMaterial = Mat->Name;
+		PenEntryV = Vin;
+		Pen_m = R.Depth_m;
+		PenExitV = R.ExitVelocity_mps;
+		PenFinalDia_m = R.FinalDiameter_m;
+		bPenStopped = R.bStopped;
+	}
 
 	const float NeckDepth_cm = R.bExpanded ? Cartridge.ExpansionDepth_m * 100.0f : (R.YawDepth_m >= 0.0f ? R.YawDepth_m * 100.0f : R.Depth_m * 100.0f);
 	if (bAuthoritative)
 	{
 		if (!IsValid(Weapon)) { Weapon = nullptr; }
-		Block->AddChannel(Entry, Dir, R.Depth_m * 100.0f, NeckDepth_cm, Cartridge.Diameter_m * 1000.0f, R.FinalDiameter_m * 1000.0f, !R.bStopped);
+		if (Block) { Block->AddChannel(Entry, Dir, R.Depth_m * 100.0f, NeckDepth_cm, Cartridge.Diameter_m * 1000.0f, R.FinalDiameter_m * 1000.0f, !R.bStopped); }
+		UE_LOG(LogTemp, Display, TEXT("PBL layer: %s %.1f mm @ %.0f deg: %.0f -> %s"), *MaterialName.ToString(), NormalThickness_m * 1000.0f,
+			FMath::RadiansToDegrees(AngleFromNormal), Vin, R.bStopped ? TEXT("stopped") : *FString::Printf(TEXT("%.0f m/s"), R.ExitVelocity_mps));
 		if (Weapon) { Weapon->OnProjectileImpact(Hit, State.Velocity, 0.0f); }
 	}
 
@@ -159,6 +189,7 @@ bool APBLProjectile::PenetrateBlock(const FHitResult& Hit, APBLGelBlock* Block)
 	State.Position = (StopPoint + Dir * 0.2f) / 100.0f;
 	State.Velocity = Dir * R.ExitVelocity_mps;
 	SetActorLocation(StopPoint + Dir * 0.2f);
+	UE_LOG(LogTemp, Verbose, TEXT("PBL layer exit: pos %s vel %s (%.1f m/s)"), *State.Position.ToCompactString(), *State.Velocity.ToCompactString(), State.Velocity.Size());
 	return true;
 }
 
@@ -186,6 +217,8 @@ void APBLProjectile::Finish(bool bHit, const FHitResult* Hit)
 		R.MediumExitVelocity_mps = PenExitV;
 		R.FinalDiameter_mm = PenFinalDia_m * 1000.0f;
 		R.bStoppedInMedium = bPenStopped;
+		R.Layers = PenLayers;
+		R.Ricochets = PenRicochets;
 		Weapon->OnProjectileFinished(R);
 	}
 	Destroy();

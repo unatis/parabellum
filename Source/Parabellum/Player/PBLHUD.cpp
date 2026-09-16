@@ -50,9 +50,10 @@ void APBLHUD::DrawHUD()
 		DrawText(Line2, FLinearColor(1.0f, 0.9f, 0.5f, 0.9f), 30.0f, 55.0f, GEngine->GetLargeFont(), 1.1f);
 		if (!R.PenetrationMaterial.IsNone())
 		{
-			const FString Line3 = FString::Printf(TEXT("%s: %.1f cm (%.1f in)   %s   dia %.1f mm"), *R.PenetrationMaterial.ToString(),
+			const FString Line3 = FString::Printf(TEXT("%s: %.1f cm (%.1f in)   %s   dia %.1f mm%s"), *R.PenetrationMaterial.ToString(),
 				R.Penetration_m * 100.0f, R.Penetration_m / 0.0254f,
-				R.bStoppedInMedium ? TEXT("STOPPED") : *FString::Printf(TEXT("EXIT %.0f m/s"), R.MediumExitVelocity_mps), R.FinalDiameter_mm);
+				R.bStoppedInMedium ? TEXT("STOPPED") : *FString::Printf(TEXT("EXIT %.0f m/s"), R.MediumExitVelocity_mps), R.FinalDiameter_mm,
+				R.Ricochets > 0 ? *FString::Printf(TEXT("   RICOCHET x%d"), R.Ricochets) : TEXT(""));
 			DrawText(Line3, FLinearColor(1.0f, 0.6f, 0.4f, 0.95f), 30.0f, 80.0f, GEngine->GetLargeFont(), 1.1f);
 		}
 	}

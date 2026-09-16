@@ -2,24 +2,24 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "PBLGelBlock.generated.h"
+#include "PBLMaterialBlock.generated.h"
 
 class UStaticMeshComponent;
 class UMaterialInterface;
 
 /**
- * Блок испытательной среды на стрельбище (гель 10% по умолчанию). Пуля, попав в него, проходит модель
- * PBLPenetration; сервер рассылает результат как канал (шейка до кувырка/раскрытия, основная часть,
- * пуля в конце) - клиенты только рисуют. Размер и материал - из DefaultGame.ini.
- * Консоль: pbl.Range.ClearGel - убрать каналы.
+ * Блок испытательного материала на стрельбище: гель, гипсокартон, фанера, доска, сталь... Материал (строка Materials.csv),
+ * размер и внешний вид задаются на экземпляре (генератор уровня) или по умолчанию из DefaultGame.ini (гель 10%).
+ * Пуля, попав в блок, проходит PBLPenetration::PassLayer по толщине вдоль своего пути; сервер рассылает канал
+ * (шейка до кувырка/раскрытия, основная часть, пуля в конце) - клиенты только рисуют. Консоль: pbl.Range.ClearGel.
  */
 UCLASS(Config=Game)
-class PARABELLUM_API APBLGelBlock : public AActor
+class PARABELLUM_API APBLMaterialBlock : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	APBLGelBlock();
+	APBLMaterialBlock();
 
 	FName GetMaterialName() const { return MaterialName; }
 	UStaticMeshComponent* GetBlock() const { return Block; }
@@ -49,10 +49,11 @@ protected:
 
 	// --- Config ---
 	/** Имя материала из Content/Data/Materials.csv. */
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Range") FName MaterialName = TEXT("Gel10");
-	/** Размер блока, см (X - вдоль выстрела). */
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Range") FVector Size = FVector(100.0f, 15.0f, 15.0f);
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Range") TSoftObjectPtr<UMaterialInterface> GelMaterial;
+	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") FName MaterialName = TEXT("Gel10");
+	/** Размер блока, см (X - вдоль выстрела = толщина слоя). */
+	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") FVector Size = FVector(100.0f, 15.0f, 15.0f);
+	/** Внешний вид блока (по умолчанию - гель). */
+	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") TSoftObjectPtr<UMaterialInterface> GelMaterial;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Range") TSoftObjectPtr<UMaterialInterface> ChannelMaterial;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Range") int32 MaxChannels = 32;
 	/** Во сколько раз канал рисуется шире реального диаметра пули (чтобы был виден). */

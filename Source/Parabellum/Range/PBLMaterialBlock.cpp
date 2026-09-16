@@ -1,4 +1,4 @@
-#include "Range/PBLGelBlock.h"
+#include "Range/PBLMaterialBlock.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -7,7 +7,7 @@
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
-APBLGelBlock::APBLGelBlock()
+APBLMaterialBlock::APBLMaterialBlock()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
@@ -22,33 +22,33 @@ APBLGelBlock::APBLGelBlock()
 	Block->SetCastShadow(false);
 }
 
-void APBLGelBlock::BeginPlay()
+void APBLMaterialBlock::BeginPlay()
 {
 	Super::BeginPlay();
 	Block->SetRelativeScale3D(Size / 100.0f);
 	if (UMaterialInterface* M = GelMaterial.LoadSynchronous()) { Block->SetMaterial(0, M); }
 }
 
-void APBLGelBlock::AddChannel(const FVector& Entry, const FVector& Dir, float Depth_cm, float NeckDepth_cm, float EntryDia_mm, float FinalDia_mm, bool bExit)
+void APBLMaterialBlock::AddChannel(const FVector& Entry, const FVector& Dir, float Depth_cm, float NeckDepth_cm, float EntryDia_mm, float FinalDia_mm, bool bExit)
 {
 	if (!HasAuthority()) { return; }
 	Multicast_AddChannel(Entry, Dir, Depth_cm, NeckDepth_cm, EntryDia_mm, FinalDia_mm, bExit);
 }
 
-void APBLGelBlock::ClearChannels()
+void APBLMaterialBlock::ClearChannels()
 {
 	if (!HasAuthority()) { return; }
 	Multicast_Clear();
 }
 
-void APBLGelBlock::Multicast_Clear_Implementation()
+void APBLMaterialBlock::Multicast_Clear_Implementation()
 {
 	for (UStaticMeshComponent* C : ChannelParts) { if (C) { C->DestroyComponent(); } }
 	ChannelParts.Reset();
 	ChannelCount = 0;
 }
 
-void APBLGelBlock::Multicast_AddChannel_Implementation(FVector_NetQuantize Entry, FVector_NetQuantizeNormal Dir, float Depth_cm, float NeckDepth_cm, float EntryDia_mm, float FinalDia_mm, bool bExit)
+void APBLMaterialBlock::Multicast_AddChannel_Implementation(FVector_NetQuantize Entry, FVector_NetQuantizeNormal Dir, float Depth_cm, float NeckDepth_cm, float EntryDia_mm, float FinalDia_mm, bool bExit)
 {
 	if (ChannelCount >= MaxChannels) { Multicast_Clear_Implementation(); }
 	++ChannelCount;
@@ -63,7 +63,7 @@ void APBLGelBlock::Multicast_AddChannel_Implementation(FVector_NetQuantize Entry
 	if (!bExit) { AddSphere(End, FMath::Max(FinalDia_mm / 10.0f, 0.9f) * 1.2f); }
 }
 
-UStaticMeshComponent* APBLGelBlock::AddCylinder(const FVector& From, const FVector& To, float Dia_cm)
+UStaticMeshComponent* APBLMaterialBlock::AddCylinder(const FVector& From, const FVector& To, float Dia_cm)
 {
 	UStaticMesh* Cyl = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (!Cyl) { return nullptr; }
@@ -83,7 +83,7 @@ UStaticMeshComponent* APBLGelBlock::AddCylinder(const FVector& From, const FVect
 	return C;
 }
 
-UStaticMeshComponent* APBLGelBlock::AddSphere(const FVector& At, float Dia_cm)
+UStaticMeshComponent* APBLMaterialBlock::AddSphere(const FVector& At, float Dia_cm)
 {
 	UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	if (!Sphere) { return nullptr; }
@@ -103,5 +103,5 @@ static FAutoConsoleCommandWithWorld CmdClearGel(TEXT("pbl.Range.ClearGel"), TEXT
 	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
 	{
 		if (!World) { return; }
-		for (TActorIterator<APBLGelBlock> It(World); It; ++It) { It->ClearChannels(); }
+		for (TActorIterator<APBLMaterialBlock> It(World); It; ++It) { It->ClearChannels(); }
 	}));

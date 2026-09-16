@@ -35,7 +35,16 @@ namespace PBLPenetration
 	/** Скорость, ниже которой пуля считается остановленной, м/с. */
 	constexpr float StopVelocity_mps = 1.0f;
 
-	/** Проход через слой толщиной MaxThickness_m (0 = бесконечная среда). */
+	/** Понселе: проход через слой толщиной MaxThickness_m (0 = бесконечная среда). Cd пули умножается на M.MediumCdScale. */
 	PARABELLUM_API FPBLPenetrationResult Penetrate(const FPBLCartridgeData& C, const FPBLMaterialData& M, float V_in_mps,
 		float MaxThickness_m = 0.0f, float dS_m = 0.0005f);
+
+	/** THOR (BRL TR-47, 1961): остаточная скорость за плитой. Возвращает 0, если не пробита. Угол - от нормали, рад. */
+	PARABELLUM_API float ThorResidualVelocity(const FPBLCartridgeData& C, const FPBLMaterialData& M, float V_in_mps, float Thickness_m, float AngleFromNormal_rad);
+
+	/** Общий вход: слой любого материала (Понселе или THOR). Толщина - по нормали; путь в среде = толщина / cos(угол). */
+	PARABELLUM_API FPBLPenetrationResult PassLayer(const FPBLCartridgeData& C, const FPBLMaterialData& M, float V_in_mps, float Thickness_m, float AngleFromNormal_rad);
+
+	/** Рикошет: непробившая пуля при угле к поверхности <= M.RicochetAngleDeg. AngleFromNormal - рад. */
+	PARABELLUM_API bool ShouldRicochet(const FPBLMaterialData& M, float AngleFromNormal_rad, bool bPerforated);
 }

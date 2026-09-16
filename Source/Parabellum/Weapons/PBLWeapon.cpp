@@ -431,6 +431,7 @@ void APBLWeapon::OnProjectileFinished(const FPBLShotReport& Report)
 			*Report.PenetrationMaterial.ToString(), Report.Penetration_m * 100.0f, Report.Penetration_m / 0.0254f, Report.MediumEntryVelocity_mps,
 			Report.bStoppedInMedium ? TEXT("STOPPED") : *FString::Printf(TEXT("EXIT at %.1f m/s"), Report.MediumExitVelocity_mps), Report.FinalDiameter_mm);
 	}
+	if (Report.Ricochets > 0) { UE_LOG(LogTemp, Display, TEXT("PBL shot: %d ricochet(s), %d layer(s)"), Report.Ricochets, Report.Layers); }
 	if (bLogShotsCsv) { AppendShotCsv(Report); }
 	Client_ShotReport(Report);
 }
@@ -448,12 +449,12 @@ void APBLWeapon::AppendShotCsv(const FPBLShotReport& R) const
 	IFileManager::Get().MakeDirectory(*Dir, true);
 	if (!IFileManager::Get().FileExists(*Path))
 	{
-		FFileHelper::SaveStringToFile(TEXT("time,firearm,cartridge,v0_mps,distance_m,vimp_mps,energy_J,tof_s,drop_cm,hit,target,medium,pen_cm,v_exit_mps,dia_mm,stopped\n"), *Path);
+		FFileHelper::SaveStringToFile(TEXT("time,firearm,cartridge,v0_mps,distance_m,vimp_mps,energy_J,tof_s,drop_cm,hit,target,medium,pen_cm,v_exit_mps,dia_mm,stopped,layers,ricochets\n"), *Path);
 	}
-	const FString Line = FString::Printf(TEXT("%s,%s,%s,%.1f,%.2f,%.1f,%.0f,%.4f,%.1f,%d,%d,%s,%.1f,%.1f,%.1f,%d\n"),
+	const FString Line = FString::Printf(TEXT("%s,%s,%s,%.1f,%.2f,%.1f,%.0f,%.4f,%.1f,%d,%d,%s,%.1f,%.1f,%.1f,%d,%d,%d\n"),
 		*FDateTime::Now().ToIso8601(), *Firearm.Name.ToString(), *Cartridge.Name.ToString(), R.V0_mps, R.Distance_m, R.ImpactVelocity_mps,
 		R.ImpactEnergy_J, R.TimeOfFlight_s, R.DropFromLOS_m * 100.0f, R.bHit ? 1 : 0, R.bHitTarget ? 1 : 0,
-		*R.PenetrationMaterial.ToString(), R.Penetration_m * 100.0f, R.MediumExitVelocity_mps, R.FinalDiameter_mm, R.bStoppedInMedium ? 1 : 0);
+		*R.PenetrationMaterial.ToString(), R.Penetration_m * 100.0f, R.MediumExitVelocity_mps, R.FinalDiameter_mm, R.bStoppedInMedium ? 1 : 0, R.Layers, R.Ricochets);
 	FFileHelper::SaveStringToFile(Line, *Path, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 }
 
