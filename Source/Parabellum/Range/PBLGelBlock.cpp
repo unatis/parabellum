@@ -65,7 +65,7 @@ void APBLGelBlock::Multicast_AddChannel_Implementation(FVector_NetQuantize Entry
 
 UStaticMeshComponent* APBLGelBlock::AddCylinder(const FVector& From, const FVector& To, float Dia_cm)
 {
-	static UStaticMesh* Cyl = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	UStaticMesh* Cyl = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (!Cyl) { return nullptr; }
 	const FVector Delta = To - From;
 	const float Len = Delta.Size();
@@ -85,7 +85,7 @@ UStaticMeshComponent* APBLGelBlock::AddCylinder(const FVector& From, const FVect
 
 UStaticMeshComponent* APBLGelBlock::AddSphere(const FVector& At, float Dia_cm)
 {
-	static UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	if (!Sphere) { return nullptr; }
 	UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
 	C->SetStaticMesh(Sphere);

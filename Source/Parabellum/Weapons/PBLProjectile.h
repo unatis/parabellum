@@ -76,6 +76,8 @@ protected:
 	FName PenMaterial;
 	float Pen_m = 0.0f, PenEntryV = 0.0f, PenExitV = 0.0f, PenFinalDia_m = 0.0f;
 	bool bPenStopped = false;
+	/** Первый сегмент трассера рисуем от видимого дула оружия. */
+	bool bFirstTracer = true;
 
 	/** Максимальный подшаг интегрирования, с. */
 	float MaxSubstep = 0.002f;

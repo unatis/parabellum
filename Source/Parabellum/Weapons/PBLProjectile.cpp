@@ -63,6 +63,7 @@ void APBLProjectile::Tick(float DeltaSeconds)
 	FHitResult Hit;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(PBLProjectile), true);
 	Params.AddIgnoredActor(this);
+	if (!IsValid(Weapon)) { Weapon = nullptr; }   // оружие могло быть уничтожено в полёте
 	if (Weapon) { Params.AddIgnoredActor(Weapon); if (Weapon->GetOwner()) { Params.AddIgnoredActor(Weapon->GetOwner()); } }
 	if (GetWorld()->LineTraceSingleByChannel(Hit, PrevPos_cm, NewPos_cm, ECC_Visibility, Params))
 	{
@@ -77,13 +78,13 @@ void APBLProjectile::Tick(float DeltaSeconds)
 		}
 		State.Position = Hit.ImpactPoint / 100.0f;
 		SetActorLocation(Hit.ImpactPoint);
-		if (Weapon) { Weapon->DrawTracerSegment(PrevPos_cm, Hit.ImpactPoint); }
+		if (Weapon) { Weapon->DrawTracerSegment(bFirstTracer ? Weapon->GetMuzzleLocation() : PrevPos_cm, Hit.ImpactPoint); bFirstTracer = false; }
 		OnImpact(Hit);
 		return;
 	}
 
 	SetActorLocation(NewPos_cm);
-	if (Weapon) { Weapon->DrawTracerSegment(PrevPos_cm, NewPos_cm); }
+	if (Weapon) { Weapon->DrawTracerSegment(bFirstTracer ? Weapon->GetMuzzleLocation() : PrevPos_cm, NewPos_cm); bFirstTracer = false; }
 	if (State.Time > MaxFlightTime || NewPos_cm.Z < -100000.0f)
 	{
 		Finish(false, nullptr);
@@ -96,7 +97,7 @@ void APBLProjectile::OnImpact(const FHitResult& Hit)
 	{
 		if (PenetrateBlock(Hit, Block)) { return; }
 	}
-	if (bAuthoritative && Weapon)
+	if (bAuthoritative && IsValid(Weapon))
 	{
 		// Урон-заглушка до модели пробития (E10.6): базовый урон, масштабированный остаточной энергией.
 		const float E0 = 0.5f * Cartridge.BulletMass_kg * V0 * V0;
@@ -138,6 +139,7 @@ bool APBLProjectile::PenetrateBlock(const FHitResult& Hit, APBLGelBlock* Block)
 	const float NeckDepth_cm = R.bExpanded ? Cartridge.ExpansionDepth_m * 100.0f : (R.YawDepth_m >= 0.0f ? R.YawDepth_m * 100.0f : R.Depth_m * 100.0f);
 	if (bAuthoritative)
 	{
+		if (!IsValid(Weapon)) { Weapon = nullptr; }
 		Block->AddChannel(Entry, Dir, R.Depth_m * 100.0f, NeckDepth_cm, Cartridge.Diameter_m * 1000.0f, R.FinalDiameter_m * 1000.0f, !R.bStopped);
 		if (Weapon) { Weapon->OnProjectileImpact(Hit, State.Velocity, 0.0f); }
 	}
@@ -163,7 +165,7 @@ bool APBLProjectile::PenetrateBlock(const FHitResult& Hit, APBLGelBlock* Block)
 void APBLProjectile::Finish(bool bHit, const FHitResult* Hit)
 {
 	bDone = true;
-	if (bAuthoritative && Weapon)
+	if (bAuthoritative && IsValid(Weapon))
 	{
 		FPBLShotReport R;
 		R.V0_mps = V0;

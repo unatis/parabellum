@@ -50,6 +50,7 @@ public:
 	const FPBLShotReport& GetLastReport() const { return LastReport; }
 	float GetLastReportTime() const { return LastReportTime; }
 
+	FVector GetMuzzleLocation() const;
 	/** Косметический след пули за кадр (вызывает пуля на всех машинах). */
 	void DrawTracerSegment(const FVector& From, const FVector& To) { SpawnTracer(From, To); }
 
@@ -95,7 +96,6 @@ protected:
 	void PlayMuzzleFX();
 	void SpawnTracer(const FVector& From, const FVector& To);
 	void HideMuzzleFlash();
-	FVector GetMuzzleLocation() const;
 
 	UFUNCTION(Server, Reliable)
 	void Server_Reload();

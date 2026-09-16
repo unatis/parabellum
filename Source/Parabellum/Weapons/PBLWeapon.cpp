@@ -121,7 +121,10 @@ void APBLWeapon::ComputeLaunch(const FVector& LOSOrigin, const FVector& LOSDir, 
 	const FVector Up = FVector::UpVector;
 	const FVector Right = FVector::CrossProduct(LOSDir, Up).GetSafeNormal();
 	const FVector LocalUp = FVector::CrossProduct(Right, LOSDir).GetSafeNormal();
-	OutOrigin = LOSOrigin - LocalUp * (Firearm.SightHeight_m * 100.0f);
+	// Пуля рождается у среза ствола: на дистанции дула вдоль линии прицеливания (боковой сдвиг viewmodel не физический - ствол под линией глаз).
+	float MuzzleAhead_cm = 0.0f;
+	if (Mesh) { MuzzleAhead_cm = FMath::Max(0.0f, FVector::DotProduct(GetMuzzleLocation() - LOSOrigin, LOSDir)); }
+	OutOrigin = LOSOrigin + LOSDir * MuzzleAhead_cm - LocalUp * (Firearm.SightHeight_m * 100.0f);
 	OutDir = (LOSDir * FMath::Cos(ZeroAngle_rad) + LocalUp * FMath::Sin(ZeroAngle_rad)).GetSafeNormal();
 }
 
@@ -340,15 +343,17 @@ void APBLWeapon::HideMuzzleFlash()
 void APBLWeapon::SpawnTracer(const FVector& From, const FVector& To)
 {
 	UMaterialInterface* M = TracerMaterial.LoadSynchronous();
-	static UStaticMesh* Cyl = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-	if (!M || !Cyl) { return; }
+	// Не кэшировать в static: сырой указатель не держит объект, после GC он битый (крэш в SpawnTracer 2026-09-16). LoadObject на уже загруженном = поиск.
+	UStaticMesh* Cyl = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	UWorld* W = GetWorld();
+	if (!M || !Cyl || !W) { return; }
 	const FVector Delta = To - From;
 	const float Len = Delta.Size();
 	if (Len < 50.0f) { return; }
 	// Цилиндр движка: высота 100 по Z, радиус 50. Z - вдоль выстрела.
 	const FTransform T(FRotationMatrix::MakeFromZ(Delta / Len).ToQuat(), From + Delta * 0.5f,
 		FVector(TracerThickness / 100.0f, TracerThickness / 100.0f, Len / 100.0f));
-	AActor* A = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), T);
+	AActor* A = W->SpawnActor<AActor>(AActor::StaticClass(), T);
 	if (!A) { return; }
 	UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(A);
 	C->SetStaticMesh(Cyl);
