@@ -197,6 +197,11 @@ void APBLCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_FireStart);
 		Input->BindAction(IA, ETriggerEvent::Completed, this, &APBLCharacter::Input_FireStop);
 	}
+	if (UInputAction* IA = AimAction.LoadSynchronous())
+	{
+		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_AimStart);
+		Input->BindAction(IA, ETriggerEvent::Completed, this, &APBLCharacter::Input_AimStop);
+	}
 	if (UInputAction* IA = ReloadAction.LoadSynchronous())
 	{
 		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_Reload);
@@ -262,4 +267,14 @@ void APBLCharacter::Input_FireStop()
 void APBLCharacter::Input_Reload()
 {
 	if (Weapon) { Weapon->StartReload(); }
+}
+
+void APBLCharacter::Input_AimStart(const FInputActionValue&)
+{
+	if (Weapon) { Weapon->SetAiming(true); }
+}
+
+void APBLCharacter::Input_AimStop(const FInputActionValue&)
+{
+	if (Weapon) { Weapon->SetAiming(false); }
 }

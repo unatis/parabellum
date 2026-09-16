@@ -61,6 +61,10 @@ public:
 	// --- Ввод владельца (клиент) ---
 	void StartFire();
 	void StopFire();
+	/** Прицеливание через мушку (ПКМ): поза viewmodel плавно выдвигается вперёд и совмещает линию прицела с глазом. */
+	void SetAiming(bool bInAiming);
+	bool IsAiming() const { return bAiming; }
+	float GetAimAlpha() const { return AimAlpha; }
 	void StartReload();
 
 	int32 GetAmmoInMag() const { return AmmoInMag; }
@@ -95,7 +99,7 @@ protected:
 	void FireOnce();
 
 	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_Fire(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir);
+	void Server_Fire(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir, bool bAimed);
 
 	/** Отчёт о выстреле стрелку (HUD-хронограф). */
 	UFUNCTION(Client, Unreliable)
@@ -119,7 +123,7 @@ protected:
 
 	/** Вспышка и косметическая пуля у других клиентов (владелец уже запустил свою). */
 	UFUNCTION(NetMulticast, Unreliable)
-	void Multicast_ShotFX(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir);
+	void Multicast_ShotFX(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir, bool bAimed);
 	void PlayMuzzleFX();
 	void SpawnTracer(const FVector& From, const FVector& To);
 	/** Цилиндр-отрезок без коллизии с временем жизни; общий для трассера и следа. */
@@ -175,6 +179,10 @@ protected:
 	FPBLRecoilState Recoil;
 	FPBLWeaponTuning Tuning;
 	FPBLAtmosphere Atmosphere;
+	bool bAiming = false;
+	float AimAlpha = 0.0f;
+	/** Текущая поза viewmodel (бедро/прицел + отдача). */
+	void UpdateViewTransform();
 	bool bRecoilTickActive = false;
 	FPBLShotReport LastReport;
 	float LastReportTime = -1000.0f;
@@ -231,6 +239,13 @@ protected:
 	/** Положение вида от первого лица относительно камеры (см): вперёд, вправо, вверх. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector ViewOffset = FVector(28.0f, 12.0f, -14.0f);
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FRotator ViewRotation = FRotator(0.0f, 0.0f, 0.0f);
+	/** Прицеливание: смещение и доворот viewmodel относительно позы от бедра при полном прицеле (координаты камеры: вперёд, вправо, вверх). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector AimOffset = FVector(6.0f, -6.0f, 1.0f);
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FRotator AimRotation = FRotator(0.0f, 0.0f, 0.0f);
+	/** Время выхода в прицел, с (реальная вскидка пистолета ~0.2 с). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float AimTime = 0.18f;
+	/** Ось канала ствола в локальных координатах меша (риг рук: +Y; одиночная модель Glock: +X). Стрельба от бедра идёт вдоль неё. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector BoreAxisLocal = FVector(0.0f, 1.0f, 0.0f);
 
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") int32 MagSize = 17;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float FireInterval = 0.15f;   // Glock ~400 rpm

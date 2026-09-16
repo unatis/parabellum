@@ -16,11 +16,14 @@ void APBLHUD::DrawHUD()
 	const float T = CrosshairThickness;
 	const float G = CrosshairGap;
 	const float L = CrosshairLength;
-	// Четыре штриха, как в CS: без центральной точки.
-	DrawRect(CrosshairColor, CX - G - L, CY - T * 0.5f, L, T);
-	DrawRect(CrosshairColor, CX + G,     CY - T * 0.5f, L, T);
-	DrawRect(CrosshairColor, CX - T * 0.5f, CY - G - L, T, L);
-	DrawRect(CrosshairColor, CX - T * 0.5f, CY + G,     T, L);
+	if (bShowCrosshair)
+	{
+		// Четыре штриха, как в CS: без центральной точки.
+		DrawRect(CrosshairColor, CX - G - L, CY - T * 0.5f, L, T);
+		DrawRect(CrosshairColor, CX + G,     CY - T * 0.5f, L, T);
+		DrawRect(CrosshairColor, CX - T * 0.5f, CY - G - L, T, L);
+		DrawRect(CrosshairColor, CX - T * 0.5f, CY + G,     T, L);
+	}
 
 	// Хит-маркер: X из четырёх диагональных штрихов
 	if (GetWorld() && GetWorld()->GetTimeSeconds() < HitMarkerUntil)

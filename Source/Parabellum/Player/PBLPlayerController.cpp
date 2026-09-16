@@ -131,6 +131,15 @@ void APBLPlayerController::SetupAutoScreenshot()
 	};
 	FTimerHandle LookEarly;
 	GetWorldTimerManager().SetTimer(LookEarly, FTimerDelegate::CreateWeakLambda(this, ApplyLook), 1.0f, false);
+	// -PBLAim: выйти в прицел через 1.2 с (проверка позы прицеливания скриншотом).
+	if (FParse::Param(FCommandLine::Get(), TEXT("PBLAim")))
+	{
+		FTimerHandle H;
+		GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (APBLCharacter* C = Cast<APBLCharacter>(GetPawn())) { if (C->GetWeapon()) { C->GetWeapon()->SetAiming(true); } }
+		}), 1.2f, false);
+	}
 	// -PBLExecDelayed="cmd1,cmd2": консольные команды через 2 с (когда мир и игрок готовы) - для проверок UI и стрельбища.
 	FString Delayed;
 	if (FParse::Value(FCommandLine::Get(), TEXT("PBLExecDelayed="), Delayed, false))

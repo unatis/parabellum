@@ -22,6 +22,8 @@ public:
 protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Crosshair") float CrosshairGap = 4.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Crosshair") float CrosshairLength = 7.0f;
+	/** Крестик. По умолчанию выключен: от бедра целимся по стволу, при прицеливании - по мушке. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|HUD") bool bShowCrosshair = false;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Crosshair") float CrosshairThickness = 2.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Crosshair") FLinearColor CrosshairColor = FLinearColor(0.2f, 1.0f, 0.2f, 0.9f);
 

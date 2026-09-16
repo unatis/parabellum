@@ -21,6 +21,7 @@ ACTIONS = {
     "IA_Crouch": unreal.InputActionValueType.BOOLEAN,
     "IA_Fire":   unreal.InputActionValueType.BOOLEAN,
     "IA_Reload": unreal.InputActionValueType.BOOLEAN,
+    "IA_Aim":    unreal.InputActionValueType.BOOLEAN,
 }
 
 # (action, key, [модификаторы]) — модификатор = (класс, {свойство: значение})
@@ -37,6 +38,7 @@ MAPPINGS = [
     ("IA_Crouch", "LeftControl", []),
     ("IA_Fire", "LeftMouseButton", []),
     ("IA_Reload", "R", []),
+    ("IA_Aim", "RightMouseButton", []),
 ]
 
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()

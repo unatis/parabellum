@@ -239,15 +239,27 @@ void APBLWeapon::Tick(float DeltaSeconds)
 	PBLRecoil::Step(Recoil, RecoilInfo, RS.Hold(Firearm.Hold), DeltaSeconds, DPitch, DYaw);
 	// Линия прицеливания следует углу хвата: приращение уходит в управляющий поворот, мышь игрока складывается с ним.
 	OwnerCharacter->ApplyRecoil(FMath::RadiansToDegrees(DPitch), FMath::RadiansToDegrees(DYaw));
-	// Визуально оружие откатывается назад и задирается сильнее камеры.
-	SetActorRelativeLocation(ViewOffset - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f));
-	SetActorRelativeRotation(ViewRotation + FRotator(FMath::RadiansToDegrees(Recoil.Pitch - Recoil.PitchRest) * RS.VisualPitchScale, 0.0f, 0.0f));
-	if (!Recoil.IsActive())
-	{
-		SetActorRelativeLocation(ViewOffset);
-		SetActorRelativeRotation(ViewRotation);
-		SetActorTickEnabled(false);
-	}
+	// Прицел: альфа позы идёт к цели за AimTime.
+	const float Target = bAiming ? 1.0f : 0.0f;
+	AimAlpha = FMath::FInterpConstantTo(AimAlpha, Target, DeltaSeconds, 1.0f / FMath::Max(AimTime, 0.01f));
+	UpdateViewTransform();
+	if (!Recoil.IsActive() && FMath::IsNearlyEqual(AimAlpha, Target)) { SetActorTickEnabled(false); }
+}
+
+void APBLWeapon::UpdateViewTransform()
+{
+	const UPBLRecoilSettings& RS = UPBLRecoilSettings::Get();
+	// Поза = бедро + (прицел - бедро)·alpha (плавная кривая), плюс визуальная отдача: откат назад и задир сильнее камеры.
+	const float A = FMath::SmoothStep(0.0f, 1.0f, AimAlpha);
+	SetActorRelativeLocation(ViewOffset + AimOffset * A - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f));
+	SetActorRelativeRotation(ViewRotation + AimRotation * A + FRotator(FMath::RadiansToDegrees(Recoil.Pitch - Recoil.PitchRest) * RS.VisualPitchScale, 0.0f, 0.0f));
+}
+
+void APBLWeapon::SetAiming(bool bInAiming)
+{
+	if (bAiming == bInAiming) { return; }
+	bAiming = bInAiming;
+	SetActorTickEnabled(true);
 }
 
 // ---------------- Стрельба ----------------
@@ -283,6 +295,10 @@ void APBLWeapon::FireOnce()
 	const FVector LOSOrigin = Cam->GetComponentLocation();
 	const FVector AimDir = OwnerCharacter->GetController() ? OwnerCharacter->GetController()->GetControlRotation().Vector() : Cam->GetForwardVector();
 	const FVector LOSDir = ApplySpread(AimDir);
+	// От бедра (прицел не выведен): пуля идёт из дула вдоль оси ствола viewmodel - без крестика, «куда смотрит ствол».
+	const bool bAimedShot = AimAlpha > 0.5f;
+	const FVector HipOrigin = GetMuzzleLocation();
+	const FVector HipDir = ApplySpread(Mesh->GetComponentTransform().TransformVectorNoScale(BoreAxisLocal).GetSafeNormal());
 
 	// Мгновенная локальная реакция (как в CS), сервер догонит.
 	PlayLocalFireFX();
@@ -292,21 +308,22 @@ void APBLWeapon::FireOnce()
 	if (!HasAuthority())
 	{
 		AmmoInMag = FMath::Max(AmmoInMag - 1, 0);  // предсказание для HUD
-		FVector O, D; ComputeLaunch(LOSOrigin, LOSDir, O, D);
+		FVector O, D;
+		if (bAimedShot) { ComputeLaunch(LOSOrigin, LOSDir, O, D); } else { O = HipOrigin; D = HipDir; }
 		if (bHasData) { LaunchProjectile(O, D * PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m), LOSOrigin, LOSDir, false); }
 	}
 
-	Server_Fire(LOSOrigin, LOSDir);
+	if (bAimedShot) { Server_Fire(LOSOrigin, LOSDir, true); } else { Server_Fire(HipOrigin, HipDir, false); }
 }
 
-bool APBLWeapon::Server_Fire_Validate(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir)
+bool APBLWeapon::Server_Fire_Validate(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir, bool bAimed)
 {
 	// Грубая защита: исходная точка не дальше 3 м от камеры владельца.
 	if (!OwnerCharacter || !OwnerCharacter->GetFirstPersonCamera()) { return false; }
 	return FVector::DistSquared(Origin, OwnerCharacter->GetFirstPersonCamera()->GetComponentLocation()) < FMath::Square(300.0f);
 }
 
-void APBLWeapon::Server_Fire_Implementation(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir)
+void APBLWeapon::Server_Fire_Implementation(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir, bool bAimed)
 {
 	if (bReloading || AmmoInMag <= 0) { return; }
 	const float Now = GetWorld()->GetTimeSeconds();
@@ -316,7 +333,7 @@ void APBLWeapon::Server_Fire_Implementation(FVector_NetQuantize Origin, FVector_
 
 	const FVector LOSOrigin = Origin;
 	const FVector LOSDir = FVector(Dir).GetSafeNormal();
-	Multicast_ShotFX(LOSOrigin, LOSDir);
+	Multicast_ShotFX(LOSOrigin, LOSDir, bAimed);
 
 	if (!bHasData)
 	{
@@ -332,7 +349,8 @@ void APBLWeapon::Server_Fire_Implementation(FVector_NetQuantize Origin, FVector_
 		return;
 	}
 
-	FVector O, D; ComputeLaunch(LOSOrigin, LOSDir, O, D);
+	FVector O, D;
+	if (bAimed) { ComputeLaunch(LOSOrigin, LOSDir, O, D); } else { O = LOSOrigin; D = LOSDir; }   // от бедра Origin/Dir - это дуло и ось ствола
 	LaunchProjectile(O, D * PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m), LOSOrigin, LOSDir, true);
 }
 
@@ -357,14 +375,15 @@ void APBLWeapon::SpawnImpact(const FVector& Location, const FVector& Normal, boo
 	}
 }
 
-void APBLWeapon::Multicast_ShotFX_Implementation(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir)
+void APBLWeapon::Multicast_ShotFX_Implementation(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir, bool bAimed)
 {
 	// Владелец уже сделал всё локально; сервер (listen) запускает авторитетную пулю сам.
 	if (HasAuthority() || (OwnerCharacter && OwnerCharacter->IsLocallyControlled())) { return; }
 	PlayMuzzleFX();
 	if (bHasData)
 	{
-		FVector O, D; ComputeLaunch(Origin, FVector(Dir), O, D);
+		FVector O, D;
+		if (bAimed) { ComputeLaunch(Origin, FVector(Dir), O, D); } else { O = Origin; D = FVector(Dir); }
 		LaunchProjectile(O, D * PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m), Origin, FVector(Dir), false);
 	}
 }

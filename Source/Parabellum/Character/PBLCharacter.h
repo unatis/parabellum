@@ -55,6 +55,8 @@ protected:
 	void Input_CrouchStop();
 	void Input_FireStart();
 	void Input_FireStop();
+	void Input_AimStart(const struct FInputActionValue& Value);
+	void Input_AimStop(const struct FInputActionValue& Value);
 	void Input_Reload();
 
 	/** Сервер выдаёт оружие при появлении. */
@@ -118,6 +120,8 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
 	TSoftObjectPtr<UInputAction> ReloadAction;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Input")
+	TSoftObjectPtr<UInputAction> AimAction;
 
 	/** Класс стартового оружия (Config, чтобы не плодить Blueprint). */
 	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Weapon")
