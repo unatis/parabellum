@@ -432,6 +432,7 @@ void APBLWeapon::OnProjectileFinished(const FPBLShotReport& Report)
 			Report.bStoppedInMedium ? TEXT("STOPPED") : *FString::Printf(TEXT("EXIT at %.1f m/s"), Report.MediumExitVelocity_mps), Report.FinalDiameter_mm);
 	}
 	if (Report.Ricochets > 0) { UE_LOG(LogTemp, Display, TEXT("PBL shot: %d ricochet(s), %d layer(s)"), Report.Ricochets, Report.Layers); }
+	if (Report.WoundDamage > 0.0f) { UE_LOG(LogTemp, Display, TEXT("PBL shot: wound damage %.1f (E %.0f J in tissue)"), Report.WoundDamage, Report.WoundEnergy_J); }
 	if (bLogShotsCsv) { AppendShotCsv(Report); }
 	Client_ShotReport(Report);
 }

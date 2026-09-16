@@ -130,6 +130,18 @@ void PBLPenetration::PassBody(const FPBLCartridgeData& C, const TArray<FResolved
 	}
 }
 
+float PBLPenetration::WoundDamage(const FPBLCartridgeData& C, const TArray<FLayerPass>& Passes, const TMap<FName, FPBLMaterialData>& Materials, float& OutEnergy_J)
+{
+	float Dmg = 0.0f; OutEnergy_J = 0.0f;
+	for (const FLayerPass& P : Passes)
+	{
+		const float E = 0.5f * C.BulletMass_kg * (P.V_in * P.V_in - P.V_out * P.V_out);
+		OutEnergy_J += E;
+		if (const FPBLMaterialData* M = Materials.Find(P.Material)) { Dmg += E * M->WoundWeight; }
+	}
+	return Dmg;
+}
+
 bool PBLPenetration::ShouldRicochet(const FPBLMaterialData& M, float AngleFromNormal_rad, bool bPerforated)
 {
 	if (bPerforated || M.RicochetAngleDeg <= 0.0f) { return false; }
@@ -261,4 +273,36 @@ static FAutoConsoleCommandWithWorldAndArgs CmdBody(
 		}
 		const bool bExit = Passes.Num() > 0 && !Passes.Last().bStopped;
 		UE_LOG(LogTemp, Display, TEXT("BODY   total path %.1f mm, %s"), Total * 1000.0f, bExit ? *FString::Printf(TEXT("EXIT %.1f m/s"), Passes.Last().V_out) : TEXT("STOPPED"));
+	}));
+
+// pbl.Ballistics.Wound <firearm|cartridge> <part> <thickness_mm> [z_cm] [lateral_cm] [V_mps] - урон по слоям части тела
+static FAutoConsoleCommandWithWorldAndArgs CmdWound(
+	TEXT("pbl.Ballistics.Wound"),
+	TEXT("Wound damage through a body part: pbl.Ballistics.Wound <firearm|cartridge> <part> <thickness_mm> [z_cm] [lateral_cm] [V_mps]"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() < 3 || !World || !World->GetGameInstance()) { UE_LOG(LogTemp, Warning, TEXT("usage: pbl.Ballistics.Wound <firearm|cartridge> <part> <thickness_mm> [z] [lat] [V]")); return; }
+		UPBLWeaponDataSubsystem* Data = World->GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>();
+		if (!Data) { return; }
+		float V = 0.0f;
+		const FPBLCartridgeData* C = ResolveCartridge(Data, Args[0], V);
+		const TArray<FPBLBodyLayer>* Layers = Data->FindBodyPart(FName(*Args[1]));
+		if (!C || !Layers) { UE_LOG(LogTemp, Warning, TEXT("pbl.Ballistics.Wound: cartridge or body part not found")); return; }
+		const float Th = FCString::Atof(*Args[2]) / 1000.0f;
+		const float Z = Args.Num() > 3 ? FCString::Atof(*Args[3]) / 100.0f : 0.0f;
+		const float Lat = Args.Num() > 4 ? FCString::Atof(*Args[4]) / 100.0f : 0.0f;
+		if (Args.Num() > 5) { V = FCString::Atof(*Args[5]); }
+		TArray<PBLPenetration::FLayerPass> Passes;
+		PBLPenetration::PassBody(*C, PBLPenetration::ResolveBodyStack(*Layers, Data->AllMaterials(), Th, Z, Lat), V, Passes);
+		float E = 0.0f;
+		const float Dmg = PBLPenetration::WoundDamage(*C, Passes, Data->AllMaterials(), E);
+		FString Detail;
+		for (const auto& P : Passes)
+		{
+			const float Ei = 0.5f * C->BulletMass_kg * (P.V_in * P.V_in - P.V_out * P.V_out);
+			const FPBLMaterialData* M = Data->FindMaterial(P.Material);
+			Detail += FString::Printf(TEXT(" %s %.0fJ(%.1f)"), *P.Material.ToString(), Ei, Ei * (M ? M->WoundWeight : 0.0f));
+		}
+		UE_LOG(LogTemp, Display, TEXT("WOUND %s -> %s %.0f mm @ %.0f m/s: damage %.1f of E %.0f J deposited, %s |%s"), *C->Name.ToString(), *Args[1], Th * 1000.0f, V, Dmg, E,
+			(Passes.Num() && !Passes.Last().bStopped) ? *FString::Printf(TEXT("EXIT %.0f m/s"), Passes.Last().V_out) : TEXT("STOPPED"), *Detail);
 	}));

@@ -35,6 +35,9 @@ struct FPBLShotReport
 	UPROPERTY() bool bStoppedInMedium = false;
 	UPROPERTY() int32 Layers = 0;
 	UPROPERTY() int32 Ricochets = 0;
+	/** Урон по цели из слоёв тканей (0 = не по цели). */
+	UPROPERTY() float WoundDamage = 0.0f;
+	UPROPERTY() float WoundEnergy_J = 0.0f;
 };
 
 /**
@@ -64,6 +67,10 @@ protected:
 	bool PenetrateLayer(const FHitResult& Hit, const FName MaterialName, APBLMaterialBlock* Block);
 	/** Часть тела: стек слоёв (кожа/жир/мышцы/кости/органы) по толщине блока вдоль пути. */
 	bool PenetrateBody(const FHitResult& Hit, APBLMaterialBlock* Block);
+	/** Попадание в живую цель (хитбокс): зона по компоненту/высоте → стек тканей → урон по энергии в слоях; сквозное - продолжает полёт. */
+	bool WoundPawn(const FHitResult& Hit);
+	/** Часть тела по хитбоксу: сфера головы → Head; капсула - по высоте над основанием актора. */
+	FName BodyPartForHit(const FHitResult& Hit) const;
 	void Finish(bool bHit, const FHitResult* Hit);
 
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Visual;
@@ -82,6 +89,8 @@ protected:
 	float Pen_m = 0.0f, PenEntryV = 0.0f, PenExitV = 0.0f, PenFinalDia_m = 0.0f;
 	bool bPenStopped = false;
 	int32 PenLayers = 0, PenRicochets = 0;
+	float WoundDmg = 0.0f, WoundE = 0.0f;
+	bool bHitTargetFlag = false;
 	/** Материал геометрии мира без блока (стены/пол полигона). */
 	FName DefaultWorldMaterial = TEXT("Concrete");
 	/** Первый сегмент трассера рисуем от видимого дула оружия. */

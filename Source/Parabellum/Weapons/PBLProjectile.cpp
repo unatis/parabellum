@@ -94,6 +94,10 @@ void APBLProjectile::Tick(float DeltaSeconds)
 void APBLProjectile::OnImpact(const FHitResult& Hit)
 {
 	const bool bPawn = Hit.GetComponent() && Hit.GetComponent()->GetCollisionObjectType() == ECC_Pawn;
+	if (bPawn && Cartridge.BulletMass_kg > 0.0f)
+	{
+		if (WoundPawn(Hit)) { return; }
+	}
 	if (!bPawn)
 	{
 		APBLMaterialBlock* Block = Cast<APBLMaterialBlock>(Hit.GetActor());
@@ -195,6 +199,87 @@ bool APBLProjectile::PenetrateLayer(const FHitResult& Hit, const FName MaterialN
 	return true;
 }
 
+FName APBLProjectile::BodyPartForHit(const FHitResult& Hit) const
+{
+	if (Hit.GetComponent() && Hit.GetComponent()->GetName().Contains(TEXT("Head"))) { return TEXT("Head"); }
+	const AActor* A = Hit.GetActor();
+	const float Base_cm = A ? A->GetActorLocation().Z : Hit.ImpactPoint.Z;   // манекен стоит основанием в своей позиции
+	const float H = Hit.ImpactPoint.Z - Base_cm;
+	if (H > 145.0f) { return TEXT("Neck"); }
+	if (H > 85.0f) { return TEXT("Torso"); }
+	if (H > 63.0f) { return TEXT("Pelvis"); }
+	return TEXT("Leg");
+}
+
+bool APBLProjectile::WoundPawn(const FHitResult& Hit)
+{
+	UPBLWeaponDataSubsystem* Data = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
+	UPrimitiveComponent* Comp = Hit.GetComponent();
+	const FName Part = BodyPartForHit(Hit);
+	const TArray<FPBLBodyLayer>* PartLayers = Data ? Data->FindBodyPart(Part) : nullptr;
+	if (!PartLayers || !Comp) { return false; }
+
+	const FVector Dir = State.Velocity.GetSafeNormal();
+	const float Vin = State.Velocity.Size();
+	const FVector Entry = Hit.ImpactPoint;
+	const float Far = Comp->Bounds.SphereRadius * 2.0f + 50.0f;
+	FHitResult ExitHit;
+	float Path_m = 0.25f;   // если дальняя грань не найдена - средняя толщина тела
+	FVector GeomExit = Entry + Dir * 25.0f;
+	if (Comp->LineTraceComponent(ExitHit, Entry + Dir * Far, Entry + Dir * 0.05f, FCollisionQueryParams(SCENE_QUERY_STAT(PBLWoundExit), true)))
+	{
+		Path_m = FMath::Max(FVector::Dist(Entry, ExitHit.ImpactPoint) / 100.0f, 0.01f);
+		GeomExit = ExitHit.ImpactPoint;
+	}
+	// Хитбокс шире тела (капсула r 22 см): путь ограничиваем номинальной глубиной части с поправкой на угол.
+	const float Nominal_m = Data->BodyPartThickness(Part);
+	if (Nominal_m > 0.0f)
+	{
+		const float CosA = FMath::Abs(FVector::DotProduct(Dir, Hit.ImpactNormal));
+		Path_m = FMath::Min(Path_m, Nominal_m / FMath::Max(CosA, 0.3f));
+	}
+	const FVector Center = Comp->GetComponentLocation();
+	const float ZFromCenter_m = (Entry.Z - Center.Z) / 100.0f;
+	const FVector Side = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
+	const float Lateral_m = FVector::DotProduct(Entry - Center, Side) / 100.0f;
+	TArray<PBLPenetration::FLayerPass> Passes;
+	PBLPenetration::PassBody(Cartridge, PBLPenetration::ResolveBodyStack(*PartLayers, Data->AllMaterials(), Path_m, ZFromCenter_m, Lateral_m), Vin, Passes);
+	if (Passes.Num() == 0) { return false; }
+	float E = 0.0f;
+	const float Dmg = PBLPenetration::WoundDamage(Cartridge, Passes, Data->AllMaterials(), E);
+	const bool bStopped = Passes.Last().bStopped;
+	const float Vout = bStopped ? 0.0f : Passes.Last().V_out;
+	float Depth_m = 0.0f;
+	FString Summary;
+	for (const auto& P : Passes) { Depth_m += P.Depth_m; Summary += FString::Printf(TEXT(" %s->%s"), *P.Material.ToString(), P.bStopped ? TEXT("stop") : *FString::Printf(TEXT("%.0f"), P.V_out)); }
+
+	++PenLayers;
+	WoundDmg += Dmg; WoundE += E;
+	bHitTargetFlag = true;
+	if (PenMaterial.IsNone()) { PenMaterial = Part; PenEntryV = Vin; Pen_m = Depth_m; PenExitV = Vout; PenFinalDia_m = Passes.Last().FinalDiameter_m; bPenStopped = bStopped; }
+	if (bAuthoritative)
+	{
+		UE_LOG(LogTemp, Display, TEXT("PBL wound: %s path %.0f mm: %.0f m/s ->%s | E %.0f J -> damage %.1f%s"), *Part.ToString(), Path_m * 1000.0f, Vin, *Summary, E, Dmg, bStopped ? TEXT(" STOPPED") : TEXT(" EXIT"));
+		if (!IsValid(Weapon)) { Weapon = nullptr; }
+		if (Weapon) { Weapon->OnProjectileImpact(Hit, State.Velocity, Dmg); }
+	}
+	const FVector StopPoint = Entry + Dir * (Depth_m * 100.0f);
+	if (bStopped)
+	{
+		State.Position = StopPoint / 100.0f;
+		State.Velocity = FVector::ZeroVector;
+		SetActorLocation(StopPoint);
+		FHitResult H = Hit;
+		Finish(true, &H);
+		return true;
+	}
+	// Сквозное: летим дальше с остаточной скоростью от геометрического выхода из хитбокса (он шире тела - иначе второй удар по той же цели).
+	State.Position = (GeomExit + Dir * 0.2f) / 100.0f;
+	State.Velocity = Dir * Vout;
+	SetActorLocation(GeomExit + Dir * 0.2f);
+	return true;
+}
+
 bool APBLProjectile::PenetrateBody(const FHitResult& Hit, APBLMaterialBlock* Block)
 {
 	UPBLWeaponDataSubsystem* Data = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
@@ -289,6 +374,9 @@ void APBLProjectile::Finish(bool bHit, const FHitResult* Hit)
 		R.bStoppedInMedium = bPenStopped;
 		R.Layers = PenLayers;
 		R.Ricochets = PenRicochets;
+		R.WoundDamage = WoundDmg;
+		R.WoundEnergy_J = WoundE;
+		if (bHitTargetFlag) { R.bHitTarget = true; }
 		Weapon->OnProjectileFinished(R);
 	}
 	Destroy();

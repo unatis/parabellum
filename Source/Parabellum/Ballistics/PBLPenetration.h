@@ -57,6 +57,9 @@ namespace PBLPenetration
 	/** Прогон стека: слои по очереди, каждый - PassLayer по своей толщине (угол уже учтён в толщине пути). */
 	PARABELLUM_API void PassBody(const FPBLCartridgeData& C, const TArray<FResolvedLayer>& Stack, float V_in_mps, TArray<FLayerPass>& Out);
 
+	/** Урон по слоям: сумма отданной энергии x WoundWeight ткани. Возвращает очки; OutEnergy - вся отданная энергия, Дж. */
+	PARABELLUM_API float WoundDamage(const FPBLCartridgeData& C, const TArray<FLayerPass>& Passes, const TMap<FName, FPBLMaterialData>& Materials, float& OutEnergy_J);
+
 	/** Рикошет: непробившая пуля при угле к поверхности <= M.RicochetAngleDeg. AngleFromNormal - рад. */
 	PARABELLUM_API bool ShouldRicochet(const FPBLMaterialData& M, float AngleFromNormal_rad, bool bPerforated);
 }

@@ -49,6 +49,7 @@ void UPBLWeaponDataSubsystem::Reload()
 	Materials.Reset();
 	References.Reset();
 	BodyParts.Reset();
+	BodyPartThickness_m.Reset();
 	auto Num = [](const TMap<FString, FString>& R, const TCHAR* Key, float Default = 0.0f) { const FString* V = R.Find(Key); return (V && !V->IsEmpty()) ? FCString::Atof(**V) : Default; };
 	const FString Dir = FPaths::ProjectContentDir() / TEXT("Data");
 
@@ -123,6 +124,7 @@ void UPBLWeaponDataSubsystem::Reload()
 			M.Thor_gamma = Num(R, TEXT("Thor_gamma")); M.Thor_lambda = Num(R, TEXT("Thor_lambda"));
 			M.RicochetAngleDeg = Num(R, TEXT("RicochetAngleDeg"));
 			M.RicochetRestitution = Num(R, TEXT("RicochetRestitution"), 0.5f);
+			M.WoundWeight = Num(R, TEXT("WoundWeight"));
 			if (!M.Name.IsNone()) { Materials.Add(M.Name, M); }
 		}
 	}
@@ -160,6 +162,15 @@ void UPBLWeaponDataSubsystem::Reload()
 			L.P1 = Num(R, TEXT("P1")) / 1000.0f;
 			L.P2 = Num(R, TEXT("P2")) / 1000.0f;
 			BodyParts.FindOrAdd(Part).Add(L);   // строки в CSV идут по порядку Order
+		}
+	}
+	Rows.Reset();
+	if (ReadCsv(Dir / TEXT("BodyParts.csv"), Rows))
+	{
+		for (const auto& R : Rows)
+		{
+			const FName Part(*R.FindRef(TEXT("Part")));
+			if (!Part.IsNone()) { BodyPartThickness_m.Add(Part, Num(R, TEXT("Thickness_mm")) / 1000.0f); }
 		}
 	}
 	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references, %d body parts from %s"),

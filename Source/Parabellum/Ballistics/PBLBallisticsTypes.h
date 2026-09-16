@@ -96,6 +96,8 @@ struct FPBLMaterialData
 	UPROPERTY() float RicochetAngleDeg = 0.0f;
 	/** Доля скорости после рикошета. */
 	UPROPERTY() float RicochetRestitution = 0.5f;
+	/** Урон (очки здоровья) на джоуль энергии, отданной пулей в этой ткани. Мозг 1.0, органы 0.35, мышцы 0.25, кожа 0.05. */
+	UPROPERTY() float WoundWeight = 0.0f;
 	bool IsThor() const { return Model == TEXT("THOR"); }
 };
 

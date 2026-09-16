@@ -27,6 +27,8 @@ public:
 	/** Слои части тела (BodyLayers.csv), в порядке прохождения спереди назад; nullptr если части нет. */
 	const TArray<FPBLBodyLayer>* FindBodyPart(FName Part) const { return BodyParts.Find(Part); }
 	const TMap<FName, TArray<FPBLBodyLayer>>& AllBodyParts() const { return BodyParts; }
+	/** Номинальная толщина части тела, м (BodyParts.csv); 0 если не задана. */
+	float BodyPartThickness(FName Part) const { const float* T = BodyPartThickness_m.Find(Part); return T ? *T : 0.0f; }
 
 	/** Перечитать CSV (консоль: pbl.Data.Reload). */
 	void Reload();
@@ -38,4 +40,5 @@ private:
 	TMap<FName, FPBLMaterialData> Materials;
 	TArray<FPBLGelReference> References;
 	TMap<FName, TArray<FPBLBodyLayer>> BodyParts;
+	TMap<FName, float> BodyPartThickness_m;
 };
