@@ -78,6 +78,8 @@ protected:
 	/** Точка и направление вылета с учётом прицельной линии и нуля. */
 	void ComputeLaunch(const FVector& LOSOrigin, const FVector& LOSDir, FVector& OutOrigin, FVector& OutDir) const;
 	void LoadWeaponData();
+	/** Масштаб меша под габаритную длину образца (OverallLength_mm из Firearms.csv). */
+	void ApplyRealSize();
 	void AppendShotCsv(const FPBLShotReport& R) const;
 
 	UFUNCTION(NetMulticast, Unreliable)

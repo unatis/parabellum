@@ -74,6 +74,8 @@ void APBLWeapon::BeginPlay()
 		Mesh->SetSkeletalMeshAsset(SM);
 	}
 	LoadWeaponData();
+	// Оружие спавнится в PossessedBy до BeginPlay мира - при привязке меша ещё не было; масштаб ставим и здесь.
+	ApplyRealSize();
 	if (HasAuthority())
 	{
 		AmmoInMag = MagSize;
@@ -150,12 +152,24 @@ void APBLWeapon::AttachToOwnerCamera(APBLCharacter* NewOwner)
 		AttachToComponent(NewOwner->GetFirstPersonCamera(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		SetActorRelativeLocation(ViewOffset);
 		SetActorRelativeRotation(ViewRotation);
-		// Меш под реальную габаритную длину образца: заглушка (SK_Pistol из Lyra, 24 см) становится размером с Glock 17 (20.2 см).
-		if (bHasData && Firearm.OverallLength_m > 0.0f && Mesh && Mesh->GetSkeletalMeshAsset())
+		ApplyRealSize();
+	}
+}
+
+void APBLWeapon::ApplyRealSize()
+{
+	// Меш под реальную габаритную длину образца: любая модель (заглушка Lyra 24 см, Glock с Fab 9.6 см) становится 20.2 см.
+	if (bHasData && Firearm.OverallLength_m > 0.0f && Mesh && Mesh->GetSkeletalMeshAsset())
+	{
+		const FVector Ext = Mesh->GetSkeletalMeshAsset()->GetBounds().BoxExtent;
+		const float MeshLen_cm = 2.0f * FMath::Max(Ext.X, Ext.Y);
+		if (MeshLen_cm > 1.0f) { SetActorScale3D(FVector(Firearm.OverallLength_m * 100.0f / MeshLen_cm)); }
+		if (OwnerCharacter && OwnerCharacter->GetFirstPersonCamera())
 		{
-			const FVector Ext = Mesh->GetSkeletalMeshAsset()->GetBounds().BoxExtent;
-			const float MeshLen_cm = 2.0f * FMath::Max(Ext.X, Ext.Y);
-			if (MeshLen_cm > 1.0f) { SetActorScale3D(FVector(Firearm.OverallLength_m * 100.0f / MeshLen_cm)); }
+			const FTransform Cam = OwnerCharacter->GetFirstPersonCamera()->GetComponentTransform();
+			const FVector MuzzleRel = Cam.InverseTransformPosition(GetMuzzleLocation());
+			UE_LOG(LogTemp, Display, TEXT("PBL Weapon: mesh %.1f cm -> scale %.3f; muzzle rel. camera fwd %.1f right %.1f up %.1f cm"),
+				MeshLen_cm, Firearm.OverallLength_m * 100.0f / MeshLen_cm, MuzzleRel.X, MuzzleRel.Y, MuzzleRel.Z);
 		}
 	}
 }
