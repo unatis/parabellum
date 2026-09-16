@@ -200,6 +200,10 @@ protected:
 	/** Печатать кости меша при старте (калибровка нового рига). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") bool bLogBones = false;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> FireSound;
+	/** Набор записей выстрела - на каждый выстрел случайная (если пуст, играет FireSound). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TArray<TSoftObjectPtr<USoundBase>> FireSounds;
+	/** Затухание по дистанции для выстрела (USoundAttenuation). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<class USoundAttenuation> FireAttenuation;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> DryFireSound;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<USoundBase> ReloadSound;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UMaterialInterface> ImpactDecal;

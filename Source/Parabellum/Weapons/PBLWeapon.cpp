@@ -26,6 +26,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Sound/SoundBase.h"
+#include "Sound/SoundAttenuation.h"
 #include "TimerManager.h"
 
 APBLWeapon::APBLWeapon()
@@ -507,9 +508,10 @@ void APBLWeapon::PlayLocalFireFX()
 		Mesh->PlayAnimation(A, false);
 		GetWorldTimerManager().SetTimer(IdleTimer, this, &APBLWeapon::PlayIdle, FMath::Max(A->GetPlayLength(), 0.05f), false);
 	}
-	if (USoundBase* S = FireSound.LoadSynchronous())
+	USoundBase* S = FireSounds.Num() > 0 ? FireSounds[FMath::RandRange(0, FireSounds.Num() - 1)].LoadSynchronous() : FireSound.LoadSynchronous();
+	if (S)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, S, GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, S, GetMuzzleLocation(), 1.0f, 1.0f, 0.0f, FireAttenuation.LoadSynchronous());
 	}
 }
 
