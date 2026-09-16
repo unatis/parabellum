@@ -19,6 +19,8 @@ struct FPBLHoldParams
 	UPROPERTY(Config, EditAnywhere) float ResidualFraction = 0.25f;
 	/** Случайный уход по горизонту как доля угловой скорости подброса (асимметрия хвата). */
 	UPROPERTY(Config, EditAnywhere) float YawFraction = 0.3f;
+	/** Систематический боковой увод (доля угловой скорости подброса, + = вправо): асимметрия хвата правши. */
+	UPROPERTY(Config, EditAnywhere) float YawBias = 0.1f;
 };
 
 /**

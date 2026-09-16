@@ -63,7 +63,9 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float HeadshotMultiplier = 4.0f;
 	/** Кость головы (Mixamo: mixamorig:Head). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") FName HeadBone = TEXT("mixamorig:Head");
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float HeadRadius = 13.0f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float HeadRadius = 14.0f;
+	/** Центр сферы головы выше начала кости Head по мировой вертикали (в позе покоя), см: кость начинается у шеи, центр черепа ~12 см выше. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float HeadOffsetUp = 12.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float BodyRadius = 22.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float BodyHalfHeight = 75.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float RespawnDelay = 4.0f;

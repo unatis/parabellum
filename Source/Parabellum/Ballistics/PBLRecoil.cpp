@@ -28,10 +28,11 @@ FPBLRecoilInfo PBLRecoil::Compute(const FPBLCartridgeData& C, const FPBLFirearmD
 void PBLRecoil::Kick(FPBLRecoilState& S, const FPBLRecoilInfo& Info, const FPBLHoldParams& Hold, float YawRandom)
 {
 	S.PitchVel += Info.Omega0_rad_s;
-	S.YawVel += Info.Omega0_rad_s * Hold.YawFraction * YawRandom;
+	const float YawFactor = Hold.YawFraction * YawRandom + Hold.YawBias;
+	S.YawVel += Info.Omega0_rad_s * YawFactor;
 	// Остаток, который стрелок не возвращает: сдвиг равновесия (игрок компенсирует мышью, как в CS).
 	S.PitchRest += Info.PeakAngle_rad * Hold.ResidualFraction;
-	S.YawRest += Info.PeakAngle_rad * Hold.ResidualFraction * Hold.YawFraction * YawRandom;
+	S.YawRest += Info.PeakAngle_rad * Hold.ResidualFraction * YawFactor;
 	S.VisualKick_cm += Info.FreeVelocity_mps * UPBLRecoilSettings::Get().VisualKick_cm_per_mps;
 }
 

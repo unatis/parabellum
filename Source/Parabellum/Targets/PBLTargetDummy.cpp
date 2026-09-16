@@ -58,7 +58,9 @@ void APBLTargetDummy::BeginPlay()
 	if (Mesh->GetBoneIndex(HeadBone) != INDEX_NONE)
 	{
 		HeadHitbox->AttachToComponent(Mesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, HeadBone);
-		HeadHitbox->SetRelativeLocation(FVector(0.0f, 6.0f, 0.0f));   // центр черепа чуть выше основания кости
+		// Центр черепа выше основания кости: смещение задаём по мировой вертикали в позе покоя, дальше сфера едет с костью.
+		HeadHitbox->SetWorldLocation(Mesh->GetBoneLocation(HeadBone) + FVector(0.0f, 0.0f, HeadOffsetUp));
+		UE_LOG(LogTemp, Display, TEXT("PBL: %s head hitbox at %s (bone %s, r %.0f)"), *GetName(), *HeadHitbox->GetComponentLocation().ToCompactString(), *Mesh->GetBoneLocation(HeadBone).ToCompactString(), HeadRadius);
 	}
 	else
 	{
