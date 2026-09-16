@@ -137,7 +137,8 @@ bool APBLProjectile::PenetrateLayer(const FHitResult& Hit, const FName MaterialN
 	                                              : PBLPenetration::Penetrate(Cartridge, *Mat, Vin, 0.0f);
 	++PenLayers;
 	// Рикошет: не пробила и угол к поверхности мал - отражаем с потерей скорости и небольшим случайным уводом.
-	if (PBLPenetration::ShouldRicochet(*Mat, AngleFromNormal, !R.bStopped))
+	// Ниже ~40 м/с пуля не рикошетит, а ложится (иначе на пределе энергии скачет по полу до бесконечности).
+	if (Vin > 40.0f && PBLPenetration::ShouldRicochet(*Mat, AngleFromNormal, !R.bStopped))
 	{
 		++PenRicochets;
 		FVector NewDir = (Dir - 2.0f * FVector::DotProduct(Dir, Hit.ImpactNormal) * Hit.ImpactNormal).GetSafeNormal();

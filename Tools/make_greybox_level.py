@@ -8,7 +8,10 @@
 ÐœÐ°ÑÑˆÑ‚Ð°Ð± Ð¾Ñ€Ð¸ÐµÐ½Ñ‚Ð¸Ñ€Ð¾Ð²Ð°Ð½ Ð½Ð° CS (1u = 1.905 ÑÐ¼): Ð¸Ð³Ñ€Ð¾Ðº 137 ÑÐ¼, Ð³Ð»Ð°Ð·Ð° 122 ÑÐ¼,
 ÑƒÐºÑ€Ñ‹Ñ‚Ð¸Ðµ "Ð¿Ð¾ Ð³Ñ€ÑƒÐ´ÑŒ" 110 ÑÐ¼ (Ð¼Ð¾Ð¶Ð½Ð¾ Ð²Ñ‹Ð³Ð»ÑÐ½ÑƒÑ‚ÑŒ), "Ð¿Ð¾ Ð¿Ð¾ÑÑ" 80 ÑÐ¼, ÐºÐ¾Ñ€Ð¸Ð´Ð¾Ñ€ ~270 ÑÐ¼.
 """
+import os
 import unreal
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 LEVEL_PATH = "/Game/Maps"
 LEVEL_NAME = "Greybox"
@@ -262,15 +265,34 @@ def main():
         tr.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
     log(f"material panels: {len(PANELS)} at {PANEL_DIST_M} m")
 
-    # Гелевая кукла: каждая часть - PBLMaterialBlock Gel10 (канал раны виден внутри).
+    # Гелевая кукла: если есть меши из Blender (/Game/Range/GelDummy + Import/GelDummy/GelDummy.json) - реальная форма,
+    # иначе коробки GEL_DUMMY_PARTS. Каждая часть - PBLMaterialBlock Gel10 со стеком слоёв BodyPart.
     gx = 2100 + GEL_DUMMY_DIST_M * 100
-    for name, size, (py, pz), part in GEL_DUMMY_PARTS:
-        blk = spawn(unreal.PBLMaterialBlock, (gx, py, pz), (0, 0, 0), f"GelDummy_{name}", "Range")
-        blk.set_editor_property("material_name", unreal.Name("Gel10"))
-        blk.set_editor_property("size", unreal.Vector(*size))
-        if part:
-            blk.set_editor_property("body_part", unreal.Name(part))
-    log(f"gel dummy: {len(GEL_DUMMY_PARTS)} parts at {GEL_DUMMY_DIST_M} m")
+    meta_path = os.path.join(ROOT, "Import", "GelDummy", "GelDummy.json")
+    used_mesh = False
+    if os.path.exists(meta_path):
+        import json
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        for name, info in meta.items():
+            mesh = eal.load_asset(f"/Game/Range/GelDummy/{name}")
+            if not mesh:
+                continue
+            cx, cy, cz = info["center_cm"]
+            blk = spawn(unreal.PBLMaterialBlock, (gx + cx, cy, cz), (0, 0, 0), f"GelDummy_{name}", "Range")
+            blk.set_editor_property("material_name", unreal.Name("Gel10"))
+            blk.set_editor_property("block_mesh", mesh)
+            blk.set_editor_property("body_part", unreal.Name(info["part"]))
+            used_mesh = True
+        log(f"gel dummy (Blender): {len(meta)} parts at {GEL_DUMMY_DIST_M} m")
+    if not used_mesh:
+        for name, size, (py, pz), part in GEL_DUMMY_PARTS:
+            blk = spawn(unreal.PBLMaterialBlock, (gx, py, pz), (0, 0, 0), f"GelDummy_{name}", "Range")
+            blk.set_editor_property("material_name", unreal.Name("Gel10"))
+            blk.set_editor_property("size", unreal.Vector(*size))
+            if part:
+                blk.set_editor_property("body_part", unreal.Name(part))
+        log(f"gel dummy (boxes): {len(GEL_DUMMY_PARTS)} parts at {GEL_DUMMY_DIST_M} m")
 
     for d in LANE_MARKS:
         t = spawn(unreal.TextRenderActor, (LANE_START_X + d * 100, LANE_W / 2 - 60, 200), (0, -90, 0), f"Lane_Label_{d}", "Lane")

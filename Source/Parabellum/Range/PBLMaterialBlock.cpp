@@ -25,7 +25,8 @@ APBLMaterialBlock::APBLMaterialBlock()
 void APBLMaterialBlock::BeginPlay()
 {
 	Super::BeginPlay();
-	Block->SetRelativeScale3D(Size / 100.0f);
+	if (UStaticMesh* SM = BlockMesh.LoadSynchronous()) { Block->SetStaticMesh(SM); Block->SetRelativeScale3D(FVector::OneVector); }
+	else { Block->SetRelativeScale3D(Size / 100.0f); }
 	if (UMaterialInterface* M = GelMaterial.LoadSynchronous()) { Block->SetMaterial(0, M); }
 }
 

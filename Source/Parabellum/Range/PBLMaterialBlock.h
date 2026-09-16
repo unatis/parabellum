@@ -53,6 +53,8 @@ protected:
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") FName BodyPart;
 	/** Имя материала из Content/Data/Materials.csv. */
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") FName MaterialName = TEXT("Gel10");
+	/** Своя форма вместо куба (например, часть куклы из Blender): Size не применяется, коллизия меша должна быть complex-as-simple. */
+	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") TSoftObjectPtr<UStaticMesh> BlockMesh;
 	/** Размер блока, см (X - вдоль выстрела = толщина слоя). */
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Range") FVector Size = FVector(100.0f, 15.0f, 15.0f);
 	/** Внешний вид блока (по умолчанию - гель). */
