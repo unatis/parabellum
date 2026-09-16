@@ -90,6 +90,12 @@ protected:
 	 */
 	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Camera")
 	float CenterFieldOfView = 103.0f;
+	/** FOV для оружия от первого лица (viewmodel, CS: 68). Рендер первого лица UE 5.5+: оружие не растягивается широким FOV мира. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Camera")
+	float ViewmodelFieldOfView = 70.0f;
+	/** Масштаб геометрии первого лица к камере (0..1): оружие можно поставить на реальные ~60 см от глаз, а рендер подтянет его ближе - не врезается в стены. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Camera")
+	float ViewmodelScale = 0.4f;
 
 	// --- Действия ввода. Это .uasset: создаются Tools/make_input_assets.py,
 	//     пути задаются в DefaultGame.ini. Мягкие ссылки: нет ассета - нет

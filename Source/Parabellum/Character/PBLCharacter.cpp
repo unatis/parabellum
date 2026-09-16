@@ -40,6 +40,10 @@ void APBLCharacter::PostInitializeComponents()
 	if (FirstPersonCamera)
 	{
 		FirstPersonCamera->SetFieldOfView(CenterFieldOfView);
+		FirstPersonCamera->bEnableFirstPersonFieldOfView = true;
+		FirstPersonCamera->SetFirstPersonFieldOfView(ViewmodelFieldOfView);
+		FirstPersonCamera->bEnableFirstPersonScale = true;
+		FirstPersonCamera->SetFirstPersonScale(ViewmodelScale);
 	}
 }
 

@@ -38,6 +38,7 @@ APBLWeapon::APBLWeapon()
 	SetRootComponent(Mesh);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCastShadow(false);            // вид от первого лица тень не отбрасывает
+	Mesh->SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType::FirstPerson);   // свой FOV (ViewmodelFieldOfView персонажа)
 	Mesh->bOnlyOwnerSee = true;            // чужим игрокам покажем оружие в руках на теле (Э5+)
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
@@ -47,6 +48,7 @@ APBLWeapon::APBLWeapon()
 	MuzzleFlash->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	MuzzleFlash->SetCastShadow(false);
 	MuzzleFlash->SetVisibility(false);
+	MuzzleFlash->SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType::FirstPerson);
 
 	MuzzleLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("MuzzleLight"));
 	MuzzleLight->SetupAttachment(Mesh);
@@ -148,6 +150,13 @@ void APBLWeapon::AttachToOwnerCamera(APBLCharacter* NewOwner)
 		AttachToComponent(NewOwner->GetFirstPersonCamera(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		SetActorRelativeLocation(ViewOffset);
 		SetActorRelativeRotation(ViewRotation);
+		// Меш под реальную габаритную длину образца: заглушка (SK_Pistol из Lyra, 24 см) становится размером с Glock 17 (20.2 см).
+		if (bHasData && Firearm.OverallLength_m > 0.0f && Mesh && Mesh->GetSkeletalMeshAsset())
+		{
+			const FVector Ext = Mesh->GetSkeletalMeshAsset()->GetBounds().BoxExtent;
+			const float MeshLen_cm = 2.0f * FMath::Max(Ext.X, Ext.Y);
+			if (MeshLen_cm > 1.0f) { SetActorScale3D(FVector(Firearm.OverallLength_m * 100.0f / MeshLen_cm)); }
+		}
 	}
 }
 

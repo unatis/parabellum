@@ -58,6 +58,8 @@ struct FPBLFirearmData
 	UPROPERTY() int32 RPM = 0;
 	UPROPERTY() FName Action = TEXT("Semi");
 	UPROPERTY() float Mass_kg = 0.9f;
+	/** Габаритная длина, м - меш оружия масштабируется под неё (заглушки получают реальный размер). */
+	UPROPERTY() float OverallLength_m = 0.0f;
 	UPROPERTY() int32 MagSize = 17;
 	/** Высота прицельной линии над осью ствола. */
 	UPROPERTY() float SightHeight_m = 0.02f;

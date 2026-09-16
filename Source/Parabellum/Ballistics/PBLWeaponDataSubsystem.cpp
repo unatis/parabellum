@@ -94,6 +94,7 @@ void UPBLWeaponDataSubsystem::Reload()
 			F.RPM = FCString::Atoi(*R.FindRef(TEXT("RPM")));
 			F.Action = FName(*R.FindRef(TEXT("Action")));
 			F.Mass_kg = FCString::Atof(*R.FindRef(TEXT("Mass_kg")));
+			F.OverallLength_m = Num(R, TEXT("OverallLength_mm")) / 1000.0f;
 			F.MagSize = FCString::Atoi(*R.FindRef(TEXT("MagSize")));
 			F.SightHeight_m = FCString::Atof(*R.FindRef(TEXT("SightHeight_mm"))) / 1000.0f;
 			F.ZeroRange_m = FCString::Atof(*R.FindRef(TEXT("ZeroRange_m")));
