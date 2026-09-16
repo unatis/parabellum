@@ -111,19 +111,26 @@ def spawn(cls, loc, rot=(0, 0, 0), label=None, folder=None):
 
 
 FLOOR_GRID_HLSL = """
-// Ð§Ð¸ÑÑ‚Ð°Ñ Ð¼ÐµÑ‚Ñ€Ð¾Ð²Ð°Ñ ÑÐµÑ‚ÐºÐ° Ð¿Ð¾ Ð¼Ð¸Ñ€Ð¾Ð²Ñ‹Ð¼ ÐºÐ¾Ð¾Ñ€Ð´Ð¸Ð½Ð°Ñ‚Ð°Ð¼: Ð±ÐµÐ· ÑˆÑƒÐ¼Ð°, Ð¾Ð´Ð¸Ð½Ð°ÐºÐ¾Ð²Ð¾ Ð²Ð¾ Ð²ÑÐµÑ… Ñ€ÐµÐ½Ð´ÐµÑ€Ð°Ñ….
-// Ð¨Ð¸Ñ€Ð¸Ð½Ð° Ð»Ð¸Ð½Ð¸Ð¹ Ð² ÐµÐ´Ð¸Ð½Ð¸Ñ†Ð°Ñ… ÑÐµÑ‚ÐºÐ¸ Ñ€Ð°ÑÑ‚Ñ‘Ñ‚ Ñ ÑÐºÑ€Ð°Ð½Ð½Ñ‹Ð¼ ÑˆÐ°Ð³Ð¾Ð¼ (fwidth) - Ð²Ð´Ð°Ð»Ð¸ Ð½Ðµ Ñ€ÑÐ±Ð¸Ñ‚, Ð° Ñ€Ð°ÑÑ‚Ð²Ð¾Ñ€ÑÐµÑ‚ÑÑ.
+// Метровая сетка по мировым координатам. Ширина линий - в МИРОВЫХ единицах (2 см / 5 см): в перспективе линии
+// сужаются как настоящая разметка. Антиалиасинг - по осям отдельно (fwidth.x для линий x=const, fwidth.y для y=const),
+// и с сохранением «количества краски»: когда пиксель шире линии, линия становится шире, но бледнее (амплитуда w/fw),
+// а не расползается в серую полосу. Раньше ширина была экранной (1.5 px min) - вдали линии не сужались и давали полосы.
 float2 p  = WorldPos.xy / 100.0f;
 float2 fw = max(fwidth(p), 1e-5f);
-float  w1 = max(0.015f, 1.5f * max(fw.x, fw.y));
-float2 g1 = abs(frac(p) - 0.5f);
-float  l1 = (1.0f - smoothstep(0.5f - w1, 0.5f, max(g1.x, g1.y))) * saturate((0.25f - w1) / 0.1f);
+float  w1 = 0.010f;                                   // полуширина 1-м линии в клетках: 2 см
+float2 d1 = 0.5f - abs(frac(p) - 0.5f);               // расстояние до ближайшей линии по каждой оси, в клетках
+float2 a1 = saturate(w1 / max(fw, w1));                // амплитуда: сохраняем интеграл яркости
+float2 c1 = (1.0f - smoothstep(w1 - fw, w1 + fw, d1)) * a1;
+float  l1 = max(c1.x, c1.y);
 float2 p5 = p / 5.0f;
-float  w5 = max(0.006f, 1.5f * max(fw.x, fw.y) / 5.0f);
-float2 g5 = abs(frac(p5) - 0.5f);
-float  l5 = (1.0f - smoothstep(0.5f - w5, 0.5f, max(g5.x, g5.y))) * saturate((0.25f - w5) / 0.1f);
+float2 fw5 = fw / 5.0f;
+float  w5 = 0.005f;                                    // 5-м линия: 5 см
+float2 d5 = 0.5f - abs(frac(p5) - 0.5f);
+float2 a5 = saturate(w5 / max(fw5, w5));
+float2 c5 = (1.0f - smoothstep(w5 - fw5, w5 + fw5, d5)) * a5;
+float  l5 = max(c5.x, c5.y);
 float  base = 0.28f;
-float  c = lerp(lerp(base, 0.20f, l1), 0.12f, l5);
+float  c = lerp(lerp(base, 0.18f, l1), 0.10f, l5);
 return float3(c, c, c);
 """
 
@@ -199,7 +206,7 @@ def main():
         a = spawn(unreal.StaticMeshActor, center, rot, label, "Geometry")
         a.static_mesh_component.set_static_mesh(cube)
         a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
-        if label == "Floor" and floor_mat:
+        if label in ("Floor", "Lane_Floor") and floor_mat:
             a.static_mesh_component.set_material(0, floor_mat)
     log(f"geometry: {len(LAYOUT)} boxes")
 

@@ -21,6 +21,7 @@
 #include "GameFramework/PlayerController.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Animation/AnimSequence.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
@@ -356,19 +357,30 @@ void APBLWeapon::HideMuzzleFlash()
 
 void APBLWeapon::SpawnTracer(const FVector& From, const FVector& To)
 {
-	UMaterialInterface* M = TracerMaterial.LoadSynchronous();
+	const FVector Delta = To - From;
+	if (Delta.Size() < 5.0f) { return; }
+	if (Delta.Size() >= 50.0f) { SpawnSegment(From, To, TracerThickness, TracerMaterial.LoadSynchronous(), TracerLifetime, NAME_None); }
+	if (TrajectoryTrailLifetime > 0.0f)
+	{
+		UMaterialInterface* TM = TrailMaterial.IsNull() ? TracerMaterial.LoadSynchronous() : TrailMaterial.LoadSynchronous();
+		SpawnSegment(From, To, TrajectoryTrailThickness, TM, TrajectoryTrailLifetime, TEXT("PBLTrail"));
+	}
+}
+
+AActor* APBLWeapon::SpawnSegment(const FVector& From, const FVector& To, float Thickness_cm, UMaterialInterface* M, float Lifetime, FName Tag)
+{
 	// Не кэшировать в static: сырой указатель не держит объект, после GC он битый (крэш в SpawnTracer 2026-09-16). LoadObject на уже загруженном = поиск.
 	UStaticMesh* Cyl = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	UWorld* W = GetWorld();
-	if (!M || !Cyl || !W) { return; }
+	if (!M || !Cyl || !W) { return nullptr; }
 	const FVector Delta = To - From;
 	const float Len = Delta.Size();
-	if (Len < 50.0f) { return; }
 	// Цилиндр движка: высота 100 по Z, радиус 50. Z - вдоль выстрела.
 	const FTransform T(FRotationMatrix::MakeFromZ(Delta / Len).ToQuat(), From + Delta * 0.5f,
-		FVector(TracerThickness / 100.0f, TracerThickness / 100.0f, Len / 100.0f));
+		FVector(Thickness_cm / 100.0f, Thickness_cm / 100.0f, Len / 100.0f));
 	AActor* A = W->SpawnActor<AActor>(AActor::StaticClass(), T);
-	if (!A) { return; }
+	if (!A) { return nullptr; }
+	if (!Tag.IsNone()) { A->Tags.Add(Tag); }
 	UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(A);
 	C->SetStaticMesh(Cyl);
 	C->SetMaterial(0, M);
@@ -377,8 +389,16 @@ void APBLWeapon::SpawnTracer(const FVector& From, const FVector& To)
 	C->RegisterComponent();
 	A->SetRootComponent(C);
 	C->SetWorldTransform(T);
-	A->SetLifeSpan(TracerLifetime);
+	A->SetLifeSpan(Lifetime);
+	return A;
 }
+
+static FAutoConsoleCommandWithWorld CmdClearTrails(TEXT("pbl.Range.ClearTrails"), TEXT("Remove bullet trajectory trails"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (!World) { return; }
+		for (TActorIterator<AActor> It(World); It; ++It) { if (It->ActorHasTag(TEXT("PBLTrail"))) { It->Destroy(); } }
+	}));
 
 void APBLWeapon::OnProjectileImpact(const FHitResult& Hit, const FVector& ImpactVelocity_mps, float DamageToApply)
 {

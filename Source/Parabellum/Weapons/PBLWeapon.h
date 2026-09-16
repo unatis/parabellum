@@ -95,6 +95,8 @@ protected:
 	void Multicast_ShotFX(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir);
 	void PlayMuzzleFX();
 	void SpawnTracer(const FVector& From, const FVector& To);
+	/** Цилиндр-отрезок без коллизии с временем жизни; общий для трассера и следа. */
+	AActor* SpawnSegment(const FVector& From, const FVector& To, float Thickness_cm, UMaterialInterface* M, float Lifetime, FName Tag);
 	void HideMuzzleFlash();
 
 	UFUNCTION(Server, Reliable)
@@ -182,6 +184,10 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector MuzzleOffset = FVector(0.0f, 19.0f, 9.0f);
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float TracerLifetime = 0.06f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float TracerThickness = 1.2f;
+	/** След траектории: тонкая линия по пути пули, живёт долго (полигон: видно падение). 0 = выключено. pbl.Range.ClearTrails. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float TrajectoryTrailLifetime = 30.0f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float TrajectoryTrailThickness = 0.3f;
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") TSoftObjectPtr<UMaterialInterface> TrailMaterial;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float MuzzleFlashTime = 0.04f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float MuzzleFlashSize = 6.0f;
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float MuzzleLightIntensity = 4000.0f;
