@@ -22,7 +22,9 @@ public class Parabellum : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"DeveloperSettings"
+			"DeveloperSettings",
+			"Slate",
+			"SlateCore"
 		});
 	}
 }

@@ -106,7 +106,8 @@ void APBLWeapon::LoadWeaponData()
 	UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
 	UPBLWeaponDataSubsystem* Data = GI ? GI->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
 	const FPBLFirearmData* F = Data ? Data->FindFirearm(FirearmName) : nullptr;
-	const FPBLCartridgeData* C = F ? Data->FindCartridge(CartridgeName.IsNone() ? F->Cartridge : CartridgeName) : nullptr;
+	const FName CartName = !Tuning.Cartridge.IsNone() ? Tuning.Cartridge : (CartridgeName.IsNone() ? F->Cartridge : CartridgeName);
+	const FPBLCartridgeData* C = F ? Data->FindCartridge(CartName) : nullptr;
 	if (!F || !C)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("PBL Weapon: нет данных для '%s' в Content/Data - hitscan-заглушка"), *FirearmName.ToString());
@@ -115,12 +116,23 @@ void APBLWeapon::LoadWeaponData()
 	Firearm = *F;
 	Cartridge = *C;
 	bHasData = true;
+	// Испытательные переопределения (окно F2): скорость через V0 при опорном стволе, масса, BC, темп, рассеивание, ноль, прицел, атмосфера.
+	if (Tuning.V0_mps > 0.0f) { Cartridge.V0_mps = Tuning.V0_mps - (Firearm.Barrel_m - Cartridge.RefBarrel_m) / 0.025f * Cartridge.dV_per_25mm_mps; }
+	if (Tuning.BulletMass_g > 0.0f) { Cartridge.BulletMass_kg = Tuning.BulletMass_g / 1000.0f; }
+	if (Tuning.BC > 0.0f) { Cartridge.BC = Tuning.BC; }
+	if (Tuning.RPM > 0.0f) { Firearm.RPM = FMath::RoundToInt(Tuning.RPM); }
+	if (Tuning.Dispersion_MOA >= 0.0f) { Firearm.Dispersion_MOA = Tuning.Dispersion_MOA; }
+	if (Tuning.ZeroRange_m > 0.0f) { Firearm.ZeroRange_m = Tuning.ZeroRange_m; }
+	if (Tuning.SightHeight_mm > 0.0f) { Firearm.SightHeight_m = Tuning.SightHeight_mm / 1000.0f; }
+	Atmosphere = FPBLAtmosphere();
+	Atmosphere.Temperature_C = Tuning.Temperature_C;
+	Atmosphere.Pressure_hPa = Tuning.Pressure_hPa;
 	MagSize = Firearm.MagSize;
 	if (Firearm.RPM > 0) { FireInterval = 60.0f / Firearm.RPM; }
 	// Рассеивание: MOA - полный угол группы; конус - полуугол. 1 MOA = 1/60 град.
 	SpreadDeg = Firearm.Dispersion_MOA / 60.0f * 0.5f;
 	const float V0 = PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m);
-	ZeroAngle_rad = PBLBallistics::SolveZeroAngle(Cartridge, FPBLAtmosphere(), V0, Firearm.SightHeight_m, Firearm.ZeroRange_m);
+	ZeroAngle_rad = PBLBallistics::SolveZeroAngle(Cartridge, Atmosphere, V0, Firearm.SightHeight_m, Firearm.ZeroRange_m);
 	RecoilInfo = PBLRecoil::Compute(Cartridge, Firearm, V0, UPBLRecoilSettings::Get().Hold(Firearm.Hold));
 	UE_LOG(LogTemp, Display, TEXT("PBL Weapon: recoil impulse %.2f N*s, free %.2f m/s / %.2f J, muzzle rise peak %.2f deg at %.0f ms, residual %.2f deg"),
 		RecoilInfo.Impulse_Ns, RecoilInfo.FreeVelocity_mps, RecoilInfo.FreeEnergy_J, FMath::RadiansToDegrees(RecoilInfo.PeakAngle_rad), RecoilInfo.TimeToPeak_s * 1000.0f,
@@ -151,7 +163,7 @@ void APBLWeapon::LaunchProjectile(const FVector& Origin, const FVector& Velocity
 	P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	if (APBLProjectile* Proj = GetWorld()->SpawnActor<APBLProjectile>(Cls, Origin, Velocity.Rotation(), P))
 	{
-		Proj->Launch(this, Cartridge, Origin, Velocity, LOSOrigin, LOSDir, bAuthoritative, Damage);
+		Proj->Launch(this, Cartridge, Origin, Velocity, LOSOrigin, LOSDir, bAuthoritative, Damage, Atmosphere);
 	}
 }
 
@@ -172,6 +184,21 @@ void APBLWeapon::AttachToOwnerCamera(APBLCharacter* NewOwner)
 		SetActorRelativeRotation(ViewRotation);
 		ApplyRealSize();
 	}
+}
+
+void APBLWeapon::ApplyTuning(const FPBLWeaponTuning& NewTuning)
+{
+	Tuning = NewTuning;
+	LoadWeaponData();
+	if (bHasData && Firearm.RPM > 0) { FireInterval = 60.0f / Firearm.RPM; }
+	if (Tuning.TrailLifetime_s >= 0.0f) { TrajectoryTrailLifetime = Tuning.TrailLifetime_s; }
+	UE_LOG(LogTemp, Display, TEXT("PBL Weapon: tuning applied (cartridge %s, V0 %.1f m/s, mass %.2f g, BC %.3f, MOA %.1f, zero %.0f m, recoil x%.2f)"),
+		*Cartridge.Name.ToString(), GetMuzzleVelocity(), Cartridge.BulletMass_kg * 1000.0f, Cartridge.BC, Firearm.Dispersion_MOA, Firearm.ZeroRange_m, Tuning.RecoilScale);
+}
+
+float APBLWeapon::GetMuzzleVelocity() const
+{
+	return bHasData ? PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m) : 0.0f;
 }
 
 void APBLWeapon::ApplyRealSize()
@@ -196,7 +223,9 @@ void APBLWeapon::ApplyRealSize()
 
 void APBLWeapon::ApplyPhysicsRecoil()
 {
-	PBLRecoil::Kick(Recoil, RecoilInfo, UPBLRecoilSettings::Get().Hold(Firearm.Hold), FMath::FRandRange(-1.0f, 1.0f));
+	FPBLRecoilInfo Scaled = RecoilInfo;
+	Scaled.Omega0_rad_s *= Tuning.RecoilScale; Scaled.PeakAngle_rad *= Tuning.RecoilScale; Scaled.FreeVelocity_mps *= Tuning.RecoilScale;
+	PBLRecoil::Kick(Recoil, Scaled, UPBLRecoilSettings::Get().Hold(Firearm.Hold), FMath::FRandRange(-1.0f, 1.0f));
 	SetActorTickEnabled(true);
 }
 

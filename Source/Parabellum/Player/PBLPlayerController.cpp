@@ -1,6 +1,11 @@
 #include "Player/PBLPlayerController.h"
 
 #include "Camera/CameraActor.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/Engine.h"
+#include "UI/SPBLTuningPanel.h"
+#include "Widgets/SWeakWidget.h"
+#include "Widgets/Layout/SConstraintCanvas.h"
 #include "Camera/CameraComponent.h"
 
 #include "EnhancedInputSubsystems.h"
@@ -92,7 +97,8 @@ void APBLPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// Привязки появятся на Э2.1 (движение) и Э4 (стрельба).
+	// Движение/стрельба - Enhanced Input в персонаже. F2 - окно испытателя (legacy-привязка работает параллельно).
+	if (InputComponent) { InputComponent->BindKey(EKeys::F2, IE_Pressed, this, &APBLPlayerController::ToggleTuningPanel); }
 }
 
 void APBLPlayerController::SetupAutoScreenshot()
@@ -125,6 +131,17 @@ void APBLPlayerController::SetupAutoScreenshot()
 	};
 	FTimerHandle LookEarly;
 	GetWorldTimerManager().SetTimer(LookEarly, FTimerDelegate::CreateWeakLambda(this, ApplyLook), 1.0f, false);
+	// -PBLExecDelayed="cmd1,cmd2": консольные команды через 2 с (когда мир и игрок готовы) - для проверок UI и стрельбища.
+	FString Delayed;
+	if (FParse::Value(FCommandLine::Get(), TEXT("PBLExecDelayed="), Delayed, false))
+	{
+		FTimerHandle H;
+		GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this, Delayed]()
+		{
+			TArray<FString> Cmds; Delayed.ParseIntoArray(Cmds, TEXT(","));
+			for (const FString& Cmd : Cmds) { ConsoleCommand(Cmd.TrimQuotes()); }
+		}), 2.0f, false);
+	}
 
 	// -PBLAutoFire=N: N выстрелов по одному в секунду, начиная за 6 с до снимка (самопроверка стрельбы).
 	int32 AutoFire = 0;
@@ -173,7 +190,7 @@ void APBLPlayerController::SetupAutoScreenshot()
 		FTimerHandle H;
 		GetWorldTimerManager().SetTimer(H, FTimerDelegate::CreateWeakLambda(this, [this, Name]()
 		{
-			FScreenshotRequest::RequestScreenshot(Name, false, false);
+			FScreenshotRequest::RequestScreenshot(Name, true, false);   // bShowUI: Slate-окна (F2) тоже в кадр
 			UE_LOG(LogTemp, Display, TEXT("PBL: screenshot requested"));
 			FTimerHandle Q;
 			GetWorldTimerManager().SetTimer(Q, FTimerDelegate::CreateWeakLambda(this, [this]()
@@ -183,3 +200,33 @@ void APBLPlayerController::SetupAutoScreenshot()
 		}), 0.3f, false);
 	}), AfterSeconds, false);
 }
+
+void APBLPlayerController::ToggleTuningPanel()
+{
+	if (!GEngine || !GEngine->GameViewport) { return; }
+	if (TuningPanel.IsValid())
+	{
+		GEngine->GameViewport->RemoveViewportWidgetContent(TuningPanel.ToSharedRef());
+		TuningPanel.Reset();
+		SetInputMode(FInputModeGameOnly());
+		bShowMouseCursor = false;
+		return;
+	}
+	TSharedRef<SWidget> Panel = SNew(SConstraintCanvas)
+		+ SConstraintCanvas::Slot().Anchors(FAnchors(1.0f, 0.0f)).Alignment(FVector2D(1.0f, 0.0f)).AutoSize(true).Offset(FMargin(-20.0f, 20.0f, 0.0f, 0.0f))
+		[ SNew(SPBLTuningPanel).Controller(this) ];
+	TuningPanel = Panel;
+	GEngine->GameViewport->AddViewportWidgetContent(Panel, 100);
+	UE_LOG(LogTemp, Display, TEXT("PBL: tuning panel opened"));
+	FInputModeGameAndUI Mode;
+	Mode.SetHideCursorDuringCapture(false);
+	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(Mode);
+	bShowMouseCursor = true;
+}
+
+static FAutoConsoleCommandWithWorld CmdTuning(TEXT("pbl.Tuning"), TEXT("Toggle the weapon tuning panel (same as F2)"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (APBLPlayerController* PC = World ? Cast<APBLPlayerController>(World->GetFirstPlayerController()) : nullptr) { PC->ToggleTuningPanel(); }
+	}));

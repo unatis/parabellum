@@ -29,11 +29,11 @@ APBLProjectile::APBLProjectile()
 }
 
 void APBLProjectile::Launch(APBLWeapon* InWeapon, const FPBLCartridgeData& InCartridge, const FVector& Origin, const FVector& Velocity,
-	const FVector& InLOSOrigin, const FVector& InLOSDir, bool bInAuthoritative, float InBaseDamage)
+	const FVector& InLOSOrigin, const FVector& InLOSDir, bool bInAuthoritative, float InBaseDamage, const FPBLAtmosphere& InAtmosphere)
 {
 	Weapon = InWeapon;
 	Cartridge = InCartridge;
-	Atmosphere = FPBLAtmosphere();
+	Atmosphere = InAtmosphere;
 	// Мир UE в сантиметрах, расчёт - в метрах.
 	State.Position = Origin / 100.0f;
 	State.Velocity = Velocity;

@@ -39,6 +39,14 @@ protected:
 	 * Запускать с -RenderOffScreen. Основной цикл проверки оптики (Э6-Э9).
 	 */
 	void SetupAutoScreenshot();
+
+public:
+	/** Окно испытателя (F2): переопределения параметров оружия на лету. */
+	void ToggleTuningPanel();
+	bool IsTuningPanelOpen() const { return TuningPanel.IsValid(); }
+
+private:
+	TSharedPtr<class SWidget> TuningPanel;
 	FTimerHandle ScreenshotHandle;
 
 	/**

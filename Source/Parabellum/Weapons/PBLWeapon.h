@@ -16,6 +16,25 @@ class UStaticMeshComponent;
 class UPointLightComponent;
 class APBLCharacter;
 
+/** Переопределения для испытаний (окно F2). 0 / пусто = взять из данных. Хранится на оружии, применяется в LoadWeaponData. */
+USTRUCT()
+struct FPBLWeaponTuning
+{
+	GENERATED_BODY()
+	UPROPERTY() FName Cartridge;
+	UPROPERTY() float V0_mps = 0.0f;
+	UPROPERTY() float BulletMass_g = 0.0f;
+	UPROPERTY() float BC = 0.0f;
+	UPROPERTY() float RPM = 0.0f;
+	UPROPERTY() float Dispersion_MOA = -1.0f;
+	UPROPERTY() float ZeroRange_m = 0.0f;
+	UPROPERTY() float SightHeight_mm = 0.0f;
+	UPROPERTY() float RecoilScale = 1.0f;
+	UPROPERTY() float TrailLifetime_s = -1.0f;
+	UPROPERTY() float Temperature_C = 15.0f;
+	UPROPERTY() float Pressure_hPa = 1013.25f;
+};
+
 /**
  * Оружие (пока - один пистолет, hitscan).
  *
@@ -48,6 +67,14 @@ public:
 	int32 GetMagSize() const { return MagSize; }
 	bool IsReloading() const { return bReloading; }
 	const FPBLShotReport& GetLastReport() const { return LastReport; }
+	// --- Испытательные переопределения (окно F2) ---
+	const FPBLWeaponTuning& GetTuning() const { return Tuning; }
+	void ApplyTuning(const FPBLWeaponTuning& NewTuning);
+	const FPBLFirearmData& GetFirearmData() const { return Firearm; }
+	const FPBLCartridgeData& GetCartridgeData() const { return Cartridge; }
+	float GetZeroAngleRad() const { return ZeroAngle_rad; }
+	const FPBLRecoilInfo& GetRecoilInfo() const { return RecoilInfo; }
+	float GetMuzzleVelocity() const;
 	float GetLastReportTime() const { return LastReportTime; }
 
 	FVector GetMuzzleLocation() const;
@@ -146,6 +173,8 @@ protected:
 	/** Отдача (E10.5): статические величины выстрела и состояние пружины хвата (только у владельца). */
 	FPBLRecoilInfo RecoilInfo;
 	FPBLRecoilState Recoil;
+	FPBLWeaponTuning Tuning;
+	FPBLAtmosphere Atmosphere;
 	bool bRecoilTickActive = false;
 	FPBLShotReport LastReport;
 	float LastReportTime = -1000.0f;

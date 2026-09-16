@@ -56,7 +56,7 @@ public:
 
 	/** Запуск. LOSOrigin/LOSDir - линия прицеливания для расчёта отклонения в отчёте. */
 	void Launch(APBLWeapon* InWeapon, const FPBLCartridgeData& InCartridge, const FVector& Origin, const FVector& Velocity,
-		const FVector& LOSOrigin, const FVector& LOSDir, bool bInAuthoritative, float InBaseDamage);
+		const FVector& LOSOrigin, const FVector& LOSDir, bool bInAuthoritative, float InBaseDamage, const FPBLAtmosphere& InAtmosphere = FPBLAtmosphere());
 
 	virtual void Tick(float DeltaSeconds) override;
 
