@@ -1,5 +1,8 @@
 #include "Player/PBLHUD.h"
 
+#include "Player/PBLPlayerController.h"
+#include "Range/PBLWeaponBench.h"
+
 #include "Character/PBLCharacter.h"
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
@@ -10,6 +13,21 @@ void APBLHUD::DrawHUD()
 {
 	Super::DrawHUD();
 	if (!Canvas) { return; }
+
+	// Оружейная комната: подпись образца и текущего шага разборки вместо боевого интерфейса.
+	if (const APBLPlayerController* PC = Cast<APBLPlayerController>(GetOwningPlayerController()))
+	{
+		if (PC->IsBenchMode())
+		{
+			if (const APBLWeaponBench* B = PC->GetBench())
+			{
+				DrawText(B->GetStatusLine(), FLinearColor(1.0f, 0.95f, 0.8f, 0.95f), 30.0f, 30.0f, GEngine->GetLargeFont(), 1.3f);
+				DrawText(TEXT("ЛКМ - вращать, E / колесо - разобрать, Q - собрать, T - полная разборка, R - сброс, F3 - выход"),
+					FLinearColor(0.8f, 0.8f, 0.8f, 0.8f), 30.0f, 58.0f, GEngine->GetLargeFont(), 1.0f);
+			}
+			return;
+		}
+	}
 
 	const float CX = Canvas->ClipX * 0.5f;
 	const float CY = Canvas->ClipY * 0.5f;

@@ -119,6 +119,24 @@ struct FPBLBodyLayer
 	UPROPERTY() float P2 = 0.0f;
 };
 
+/** Шаг разборки детали оружия (Content/Data/WeaponParts.csv, генерируется из скрипта Blender). */
+USTRUCT()
+struct FPBLWeaponPartStep
+{
+	GENERATED_BODY()
+	UPROPERTY() FName Weapon;
+	UPROPERTY() FName Generation;
+	UPROPERTY() FName Part;
+	UPROPERTY() FString DisplayName;
+	/** Field - неполная разборка, Full - полная. */
+	UPROPERTY() FName Stage;
+	UPROPERTY() FName Group;
+	UPROPERTY() int32 Order = 0;
+	/** Направление съёма в координатах сборки и расстояние отвода, см. */
+	UPROPERTY() FVector Dir = FVector::ZeroVector;
+	UPROPERTY() float Dist_cm = 0.0f;
+};
+
 /** Эталонная строка (Content/Data/Reference_Gel.csv) для автосверки pbl.Ballistics.GelCheck. */
 struct FPBLGelReference
 {

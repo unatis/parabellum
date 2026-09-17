@@ -265,6 +265,10 @@ def main():
         tr.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
     log(f"material panels: {len(PANELS)} at {PANEL_DIST_M} m")
 
+    # Оружейный стенд (F3): в арене, на высоте глаз, лицом к северу.
+    bench = spawn(unreal.PBLWeaponBench, (-1700, -1200, 150), (0, 0, 0), "WeaponBench", "Range")
+    log("weapon bench at (-1700, -1200, 150)")
+
     # Гелевая кукла: если есть меши из Blender (/Game/Range/GelDummy + Import/GelDummy/GelDummy.json) - реальная форма,
     # иначе коробки GEL_DUMMY_PARTS. Каждая часть - PBLMaterialBlock Gel10 со стеком слоёв BodyPart.
     gx = 2100 + GEL_DUMMY_DIST_M * 100

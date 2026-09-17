@@ -1,5 +1,8 @@
 #include "Player/PBLPlayerController.h"
 
+#include "EngineUtils.h"
+#include "Range/PBLWeaponBench.h"
+
 #include "Camera/CameraActor.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/Engine.h"
@@ -98,7 +101,19 @@ void APBLPlayerController::SetupInputComponent()
 	Super::SetupInputComponent();
 
 	// Движение/стрельба - Enhanced Input в персонаже. F2 - окно испытателя (legacy-привязка работает параллельно).
-	if (InputComponent) { InputComponent->BindKey(EKeys::F2, IE_Pressed, this, &APBLPlayerController::ToggleTuningPanel); }
+	if (InputComponent)
+	{
+		InputComponent->BindKey(EKeys::F2, IE_Pressed, this, &APBLPlayerController::ToggleTuningPanel);
+		InputComponent->BindKey(EKeys::F3, IE_Pressed, this, &APBLPlayerController::ToggleBench);
+		InputComponent->BindKey(EKeys::E, IE_Pressed, this, &APBLPlayerController::BenchNext);
+		InputComponent->BindKey(EKeys::Q, IE_Pressed, this, &APBLPlayerController::BenchPrev);
+		InputComponent->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &APBLPlayerController::BenchNext);
+		InputComponent->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &APBLPlayerController::BenchPrev);
+		InputComponent->BindKey(EKeys::T, IE_Pressed, this, &APBLPlayerController::BenchStage);
+		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &APBLPlayerController::BenchReset);
+		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &APBLPlayerController::BenchDragStart);
+		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &APBLPlayerController::BenchDragStop);
+	}
 }
 
 void APBLPlayerController::SetupAutoScreenshot()
@@ -239,3 +254,120 @@ static FAutoConsoleCommandWithWorld CmdTuning(TEXT("pbl.Tuning"), TEXT("Toggle t
 	{
 		if (APBLPlayerController* PC = World ? Cast<APBLPlayerController>(World->GetFirstPlayerController()) : nullptr) { PC->ToggleTuningPanel(); }
 	}));
+
+// ---------------- Оружейная комната ----------------
+
+void APBLPlayerController::ToggleBench()
+{
+	if (!GetWorld()) { return; }
+	if (!Bench.IsValid())
+	{
+		for (TActorIterator<APBLWeaponBench> It(GetWorld()); It; ++It) { Bench = *It; break; }
+	}
+	APBLWeaponBench* B = Bench.Get();
+	if (!B) { UE_LOG(LogTemp, Warning, TEXT("PBL: стенд не найден на уровне")); return; }
+
+	bBenchMode = !bBenchMode;
+	if (bBenchMode)
+	{
+		if (!BenchCamera.IsValid())
+		{
+			BenchCamera = GetWorld()->SpawnActor<ACameraActor>(B->GetActorLocation(), FRotator::ZeroRotator);
+		}
+		UpdateBenchCamera(1.0f);
+		SetViewTargetWithBlend(BenchCamera.Get(), 0.5f);
+		FInputModeGameAndUI Mode;
+		Mode.SetHideCursorDuringCapture(false);
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		SetInputMode(Mode);
+		bShowMouseCursor = true;
+		UE_LOG(LogTemp, Display, TEXT("PBL: оружейная комната - %s"), *B->GetStatusLine());
+	}
+	else
+	{
+		SetViewTargetWithBlend(GetPawn(), 0.4f);
+		SetInputMode(FInputModeGameOnly());
+		bShowMouseCursor = false;
+		bDragging = false;
+	}
+}
+
+void APBLPlayerController::BenchDragStart()
+{
+	if (!bBenchMode) { return; }
+	bDragging = true;
+	float X, Y;
+	if (GetMousePosition(X, Y)) { LastMouse = FVector2D(X, Y); }
+}
+
+void APBLPlayerController::BenchDragStop() { bDragging = false; }
+
+void APBLPlayerController::BenchNext()
+{
+	if (bBenchMode && Bench.IsValid()) { Bench->StepForward(); UE_LOG(LogTemp, Display, TEXT("PBL: %s"), *Bench->GetStatusLine()); }
+}
+
+void APBLPlayerController::BenchPrev()
+{
+	if (bBenchMode && Bench.IsValid()) { Bench->StepBack(); UE_LOG(LogTemp, Display, TEXT("PBL: %s"), *Bench->GetStatusLine()); }
+}
+
+void APBLPlayerController::BenchStage()
+{
+	if (bBenchMode && Bench.IsValid()) { Bench->ToggleStage(); UE_LOG(LogTemp, Display, TEXT("PBL: %s"), *Bench->GetStatusLine()); }
+}
+
+void APBLPlayerController::BenchReset()
+{
+	if (bBenchMode && Bench.IsValid()) { Bench->ResetView(); }
+}
+
+static FAutoConsoleCommandWithWorld CmdBench(TEXT("pbl.Bench"), TEXT("Toggle the armory bench (same as F3)"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (APBLPlayerController* PC = World ? Cast<APBLPlayerController>(World->GetFirstPlayerController()) : nullptr) { PC->ToggleBench(); }
+	}));
+
+void APBLPlayerController::UpdateBenchCamera(float Blend)
+{
+	APBLWeaponBench* B = Bench.Get();
+	ACameraActor* Cam = BenchCamera.Get();
+	if (!B || !Cam) { return; }
+	FVector Center; float Radius;
+	B->GetViewFocus(Center, Radius);
+	const float FOV = 55.0f;
+	const float Dist = Radius / FMath::Tan(FMath::DegreesToRadians(FOV * 0.5f)) * 1.35f;
+	const FVector Goal = Center + FVector(0.0f, -Dist, Radius * 0.12f);
+	const FVector Loc = FMath::Lerp(Cam->GetActorLocation(), Goal, FMath::Clamp(Blend, 0.0f, 1.0f));
+	Cam->SetActorLocation(Loc);
+	Cam->SetActorRotation((Center - Loc).Rotation());
+	Cam->GetCameraComponent()->SetFieldOfView(FOV);
+}
+
+void APBLPlayerController::PlayerTick(float DeltaTime)
+{
+	Super::PlayerTick(DeltaTime);
+	if (!bBenchMode) { return; }
+	// Камера плавно подстраивается: при разборке детали расходятся, кадр расширяется.
+	UpdateBenchCamera(FMath::Clamp(DeltaTime * 3.0f, 0.0f, 1.0f));
+	if (!bDragging || !Bench.IsValid()) { return; }
+	float X, Y;
+	if (!GetMousePosition(X, Y)) { return; }
+	const FVector2D Now(X, Y);
+	const FVector2D D = Now - LastMouse;
+	LastMouse = Now;
+	// Тянем мышью - образец поворачивается за ней.
+	Bench->AddRotation(-D.X * 0.4f, D.Y * 0.4f);
+}
+
+// Консольные команды для проверки без клавиатуры: pbl.Bench.Next / Prev / Stage / Reset
+static void BenchCmd(UWorld* World, void (APBLPlayerController::*Fn)())
+{
+	if (APBLPlayerController* PC = World ? Cast<APBLPlayerController>(World->GetFirstPlayerController()) : nullptr) { (PC->*Fn)(); }
+}
+static FAutoConsoleCommandWithWorld CmdBenchNext(TEXT("pbl.Bench.Next"), TEXT("Next disassembly step"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W) { BenchCmd(W, &APBLPlayerController::BenchNext); }));
+static FAutoConsoleCommandWithWorld CmdBenchPrev(TEXT("pbl.Bench.Prev"), TEXT("Previous step (assemble)"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W) { BenchCmd(W, &APBLPlayerController::BenchPrev); }));
+static FAutoConsoleCommandWithWorld CmdBenchStage(TEXT("pbl.Bench.Stage"), TEXT("Toggle field/full strip"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W) { BenchCmd(W, &APBLPlayerController::BenchStage); }));

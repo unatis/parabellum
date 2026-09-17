@@ -43,10 +43,30 @@ protected:
 public:
 	/** Окно испытателя (F2): переопределения параметров оружия на лету. */
 	void ToggleTuningPanel();
+	/** Оружейная комната (F3): камера у стенда, мышь вращает образец, колесо разбирает. */
+	void ToggleBench();
+	virtual void PlayerTick(float DeltaTime) override;
+	class APBLWeaponBench* GetBench() const { return Bench.Get(); }
+	bool IsBenchMode() const { return bBenchMode; }
+	void BenchNext();
+	void BenchPrev();
+	void BenchStage();
+	void BenchReset();
+
+private:
+	void UpdateBenchCamera(float Blend);
+public:
 	bool IsTuningPanelOpen() const { return TuningPanel.IsValid(); }
 
 private:
 	TSharedPtr<class SWidget> TuningPanel;
+	TWeakObjectPtr<class APBLWeaponBench> Bench;
+	TWeakObjectPtr<class ACameraActor> BenchCamera;
+	bool bBenchMode = false;
+	FVector2D LastMouse = FVector2D::ZeroVector;
+	bool bDragging = false;
+	void BenchDragStart();
+	void BenchDragStop();
 	FTimerHandle ScreenshotHandle;
 
 	/**

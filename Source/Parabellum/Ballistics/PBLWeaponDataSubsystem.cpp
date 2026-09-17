@@ -50,6 +50,7 @@ void UPBLWeaponDataSubsystem::Reload()
 	References.Reset();
 	BodyParts.Reset();
 	BodyPartThickness_m.Reset();
+	PartSteps_.Reset();
 	auto Num = [](const TMap<FString, FString>& R, const TCHAR* Key, float Default = 0.0f) { const FString* V = R.Find(Key); return (V && !V->IsEmpty()) ? FCString::Atof(**V) : Default; };
 	const FString Dir = FPaths::ProjectContentDir() / TEXT("Data");
 
@@ -174,8 +175,27 @@ void UPBLWeaponDataSubsystem::Reload()
 			if (!Part.IsNone()) { BodyPartThickness_m.Add(Part, Num(R, TEXT("Thickness_mm")) / 1000.0f); }
 		}
 	}
-	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references, %d body parts from %s"),
-		Cartridges.Num(), Firearms.Num(), Materials.Num(), References.Num(), BodyParts.Num(), *Dir);
+	Rows.Reset();
+	if (ReadCsv(Dir / TEXT("WeaponParts.csv"), Rows))
+	{
+		for (const auto& R : Rows)
+		{
+			FPBLWeaponPartStep P;
+			P.Weapon = FName(*R.FindRef(TEXT("Weapon")));
+			P.Generation = FName(*R.FindRef(TEXT("Generation")));
+			P.Part = FName(*R.FindRef(TEXT("Part")));
+			P.DisplayName = R.FindRef(TEXT("DisplayName"));
+			P.Stage = FName(*R.FindRef(TEXT("Stage")));
+			P.Group = FName(*R.FindRef(TEXT("Group")));
+			P.Order = FCString::Atoi(*R.FindRef(TEXT("Order")));
+			P.Dir = FVector(Num(R, TEXT("DirX")), Num(R, TEXT("DirY")), Num(R, TEXT("DirZ")));
+			P.Dist_cm = Num(R, TEXT("Dist_cm"));
+			if (!P.Part.IsNone()) { PartSteps_.Add(P); }
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references, %d body parts, %d part steps from %s"),
+		Cartridges.Num(), Firearms.Num(), Materials.Num(), References.Num(), BodyParts.Num(), PartSteps_.Num(), *Dir);
 }
 
 static FAutoConsoleCommandWithWorld CmdDataReload(TEXT("pbl.Data.Reload"), TEXT("Reload Content/Data/*.csv"),
@@ -186,3 +206,14 @@ static FAutoConsoleCommandWithWorld CmdDataReload(TEXT("pbl.Data.Reload"), TEXT(
 			if (UPBLWeaponDataSubsystem* D = World->GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>()) { D->Reload(); }
 		}
 	}));
+
+TArray<FPBLWeaponPartStep> UPBLWeaponDataSubsystem::PartSteps(FName Weapon, FName Stage) const
+{
+	TArray<FPBLWeaponPartStep> Out;
+	for (const FPBLWeaponPartStep& P : PartSteps_)
+	{
+		if (P.Weapon == Weapon && (Stage.IsNone() || P.Stage == Stage)) { Out.Add(P); }
+	}
+	Out.Sort([](const FPBLWeaponPartStep& A, const FPBLWeaponPartStep& B) { return A.Order < B.Order; });
+	return Out;
+}

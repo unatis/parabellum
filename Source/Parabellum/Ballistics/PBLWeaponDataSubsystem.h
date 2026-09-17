@@ -24,6 +24,9 @@ public:
 	const FPBLMaterialData* FindMaterial(FName Name) const { return Materials.Find(Name); }
 	const TMap<FName, FPBLMaterialData>& AllMaterials() const { return Materials; }
 	const TArray<FPBLGelReference>& GelReferences() const { return References; }
+	/** Шаги разборки образца на нужной стадии, в порядке съёма. */
+	TArray<FPBLWeaponPartStep> PartSteps(FName Weapon, FName Stage) const;
+	const TArray<FPBLWeaponPartStep>& AllPartSteps() const { return PartSteps_; }
 	/** Слои части тела (BodyLayers.csv), в порядке прохождения спереди назад; nullptr если части нет. */
 	const TArray<FPBLBodyLayer>* FindBodyPart(FName Part) const { return BodyParts.Find(Part); }
 	const TMap<FName, TArray<FPBLBodyLayer>>& AllBodyParts() const { return BodyParts; }
@@ -41,4 +44,5 @@ private:
 	TArray<FPBLGelReference> References;
 	TMap<FName, TArray<FPBLBodyLayer>> BodyParts;
 	TMap<FName, float> BodyPartThickness_m;
+	TArray<FPBLWeaponPartStep> PartSteps_;
 };
