@@ -458,3 +458,16 @@ static FAutoConsoleCommandWithWorldAndArgs CmdBenchSlow(
 		APBLPlayerController* PC = W ? Cast<APBLPlayerController>(W->GetFirstPlayerController()) : nullptr;
 		if (APBLWeaponBench* B = PC ? PC->GetBench() : nullptr) { B->SetSlowMotion(Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.1f); }
 	}));
+
+static FAutoConsoleCommandWithWorldAndArgs CmdBenchRotate(
+	TEXT("pbl.Bench.Rotate"),
+	TEXT("Turn the specimen on the bench: pbl.Bench.Rotate <yaw> [pitch]"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W)
+	{
+		APBLPlayerController* PC = W ? Cast<APBLPlayerController>(W->GetFirstPlayerController()) : nullptr;
+		if (APBLWeaponBench* B = PC ? PC->GetBench() : nullptr)
+		{
+			B->AddRotation(Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.0f,
+			               Args.Num() > 1 ? FCString::Atof(*Args[1]) : 0.0f);
+		}
+	}));

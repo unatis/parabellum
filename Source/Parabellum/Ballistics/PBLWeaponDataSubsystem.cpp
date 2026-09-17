@@ -80,6 +80,8 @@ void UPBLWeaponDataSubsystem::Reload()
 			C.ExpandedCd = Num(R, TEXT("ExpandedCd"), 0.3f);
 			C.ExpansionDepth_m = Num(R, TEXT("ExpansionDepth_mm"), 25.0f) / 1000.0f;
 			C.RetainedMassFraction = Num(R, TEXT("RetainedMassFraction"), 1.0f);
+			C.CaseLength_m = Num(R, TEXT("CaseLength_mm"), 19.15f) / 1000.0f;
+			C.CaseMass_kg = Num(R, TEXT("CaseMass_g"), 4.0f) / 1000.0f;
 			if (!C.Name.IsNone()) { Cartridges.Add(C.Name, C); }
 		}
 	}
@@ -114,6 +116,10 @@ void UPBLWeaponDataSubsystem::Reload()
 			F.BarrelTilt_deg = Num(R, TEXT("BarrelTilt_deg"), 3.0f);
 			F.SlideResist_N = Num(R, TEXT("SlideResist_N"), 12.0f);
 			F.FeedResist_N = Num(R, TEXT("FeedResist_N"), 30.0f);
+			F.EjectPort_m = FVector(Num(R, TEXT("EjectPortX_mm")), Num(R, TEXT("EjectPortY_mm")), Num(R, TEXT("EjectPortZ_mm"))) / 1000.0f;
+			F.EjectRight_deg = Num(R, TEXT("EjectRight_deg"), 80.0f);
+			F.EjectUp_deg = Num(R, TEXT("EjectUp_deg"), 25.0f);
+			F.EjectSpin_rps = Num(R, TEXT("EjectSpin_rps"), 30.0f);
 			if (!F.Name.IsNone()) { Firearms.Add(F.Name, F); }
 		}
 	}

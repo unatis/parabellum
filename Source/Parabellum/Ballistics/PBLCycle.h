@@ -54,6 +54,9 @@ namespace PBLCycle
 	/** Шаг интегрирования (подшаги внутри). */
 	PARABELLUM_API void Step(FPBLCycleState& S, const FPBLFirearmData& F, float Dt);
 
+	/** Скорость подвижных частей на заданном ходе отката, м/с (0, если схема не считается). */
+	PARABELLUM_API float VelocityAtTravel(const FPBLFirearmData& F, float Impulse_Ns, float Travel_m);
+
 	/** Расчёт цикла целиком, без отрисовки: ход, время отката, время цикла, предельный темп. */
 	PARABELLUM_API void Predict(const FPBLFirearmData& F, float Impulse_Ns, float& OutTravel_m,
 		float& OutRecoilTime_s, float& OutCycleTime_s, float& OutMaxRPM);

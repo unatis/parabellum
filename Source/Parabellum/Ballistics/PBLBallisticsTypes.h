@@ -42,6 +42,9 @@ struct FPBLCartridgeData
 	/** Глубина, на которой раскрытие завершается, м. */
 	UPROPERTY() float ExpansionDepth_m = 0.025f;
 	UPROPERTY() float RetainedMassFraction = 1.0f;
+	/** Гильза: длина и масса. Длина задаёт, на каком ходу затвора патрон выйдет из патронника. */
+	UPROPERTY() float CaseLength_m = 0.01915f;
+	UPROPERTY() float CaseMass_kg = 0.004f;
 
 	float FrontalArea_m2() const { return PI * 0.25f * Diameter_m * Diameter_m; }
 	float SectionalDensity_kgm2() const { return BulletMass_kg / (Diameter_m * Diameter_m); }
@@ -90,6 +93,12 @@ struct FPBLFirearmData
 	UPROPERTY() float SlideResist_N = 12.0f;
 	/** Сопротивление только на накате, Н: срыв патрона с магазина и досылание в патронник. */
 	UPROPERTY() float FeedResist_N = 30.0f;
+	/** Окно выброса в системе координат модели: ноль - дульный срез, +X вперёд, +Y вправо, м. */
+	UPROPERTY() FVector EjectPort_m = FVector::ZeroVector;
+	/** Куда уходит гильза: вбок от оси канала и вверх, град; закрутка, об/с. */
+	UPROPERTY() float EjectRight_deg = 80.0f;
+	UPROPERTY() float EjectUp_deg = 25.0f;
+	UPROPERTY() float EjectSpin_rps = 30.0f;
 	bool IsRecoilOperated() const { return ActionScheme == TEXT("Browning") || ActionScheme == TEXT("Blowback"); }
 };
 

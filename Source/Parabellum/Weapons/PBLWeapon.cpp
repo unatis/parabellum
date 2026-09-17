@@ -9,7 +9,9 @@
 #include "Engine/StaticMesh.h"
 #include "Player/PBLHUD.h"
 #include "Weapons/PBLBulletDamage.h"
+#include "Weapons/PBLEjectedCase.h"
 #include "Ballistics/PBLBallistics.h"
+#include "Ballistics/PBLCycle.h"
 #include "Ballistics/PBLRecoil.h"
 #include "Ballistics/PBLRecoilSettings.h"
 #include "Ballistics/PBLWeaponDataSubsystem.h"
@@ -534,8 +536,40 @@ void APBLWeapon::Client_HitConfirmed_Implementation(bool bHead, bool bKill)
 	}
 }
 
+void APBLWeapon::EjectCase()
+{
+	// Гильзу уносит назад вместе с затвором, поэтому её скорость - это скорость затвора на том ходе,
+	// где патрон уже вышел из патронника. Ход считается из импульса выстрела, как и отдача.
+	if (!bHasData || !Firearm.IsRecoilOperated()) { return; }
+	if (!CaseMesh) { CaseMesh = APBLEjectedCase::CaseMeshFor(Firearm.Cartridge); }
+	if (!CaseMesh) { return; }
+	const float V0 = PBLBallistics::MuzzleVelocity(Cartridge, Firearm.Barrel_m);
+	const float Impulse = Cartridge.BulletMass_kg * V0 + Cartridge.PowderMass_kg * Cartridge.GasVelocity_mps;
+	const float Speed_mps = PBLCycle::VelocityAtTravel(Firearm, Impulse, Cartridge.CaseLength_m + 0.003f);
+	if (Speed_mps <= 0.0f) { return; }
+
+	// Окно выброса задано от дульного среза вдоль оси канала, поэтому не зависит от того, какой
+	// именно моделью оружия мы играем: для стрельбы и для оружейки они разные.
+	const FTransform& T = Mesh->GetComponentTransform();
+	const FVector Fwd = T.TransformVectorNoScale(BoreAxisLocal).GetSafeNormal();
+	FVector Right = FVector::CrossProduct(T.GetUnitAxis(EAxis::Z), Fwd).GetSafeNormal();
+	if (Right.IsNearlyZero()) { Right = FVector::CrossProduct(FVector::UpVector, Fwd).GetSafeNormal(); }
+	const FVector Up = FVector::CrossProduct(Fwd, Right).GetSafeNormal();
+	const FVector Port = GetMuzzleLocation()
+		+ (Fwd * Firearm.EjectPort_m.X + Right * Firearm.EjectPort_m.Y + Up * Firearm.EjectPort_m.Z) * 100.0f;
+
+	const float R = FMath::DegreesToRadians(Firearm.EjectRight_deg);
+	const float U = FMath::DegreesToRadians(Firearm.EjectUp_deg);
+	const FVector Dir = -Fwd * (FMath::Cos(R) * FMath::Cos(U)) + Right * (FMath::Sin(R) * FMath::Cos(U)) + Up * FMath::Sin(U);
+	// Гильза наследует движение стрелка: он для неё - система отсчёта.
+	const FVector Carry = OwnerCharacter ? OwnerCharacter->GetVelocity() : FVector::ZeroVector;
+	APBLEjectedCase::Eject(GetWorld(), FTransform(Fwd.Rotation(), Port), Dir * Speed_mps * 100.0f + Carry,
+		Up * (Firearm.EjectSpin_rps * 360.0f), Cartridge.CaseMass_kg, CaseMesh);
+}
+
 void APBLWeapon::PlayLocalFireFX()
 {
+	EjectCase();
 	if (UAnimSequence* A = FireAnim.LoadSynchronous())
 	{
 		Mesh->PlayAnimation(A, false);

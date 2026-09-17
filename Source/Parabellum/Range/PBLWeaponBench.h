@@ -94,9 +94,16 @@ protected:
 	bool RidesWithSlide(FName Part) const;
 	/** Разложить подвижные части по текущему состоянию цикла. */
 	void ApplyCyclePose();
+	/** Выбросить гильзу, когда затвор вытащил её из патронника и донце дошло до отражателя. */
+	void EjectCase();
 
 	FPBLCycleState Cycle;
 	FPBLFirearmData Firearm;
+	FPBLCartridgeData Cartridge;
+	/** Ход затвора, на котором гильза покидает патронник: её собственная длина плюс зазор. */
+	float EjectTravel_m = 0.0f;
+	bool bCaseEjected = false;
+	UPROPERTY(Transient) TObjectPtr<class UStaticMesh> CaseMesh;
 	float TimeScale = 0.1f;
 	bool bCycleFrozen = false;
 

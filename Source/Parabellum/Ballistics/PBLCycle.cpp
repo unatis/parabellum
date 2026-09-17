@@ -118,3 +118,14 @@ static FAutoConsoleCommandWithWorldAndArgs CmdCycle(
 		UE_LOG(LogTemp, Display, TEXT("CYCLE   ход %.1f мм из %.0f возможных, откат %.1f мс, цикл %.1f мс -> предельный темп %.0f выстр/мин (в данных %d)"),
 			Travel * 1000.0f, F->SlideTravel_m * 1000.0f, RecoilT * 1000.0f, CycleT * 1000.0f, MaxRPM, F->RPM);
 	}));
+
+float PBLCycle::VelocityAtTravel(const FPBLFirearmData& F, float Impulse_Ns, float Travel_m)
+{
+	FPBLCycleState S;
+	Fire(S, F, Impulse_Ns);
+	for (int32 i = 0; i < 100000 && S.Phase == EPBLCyclePhase::Recoiling && S.X < Travel_m; ++i)
+	{
+		Step(S, F, MaxSubstep);
+	}
+	return S.Phase == EPBLCyclePhase::Recoiling ? S.V : 0.0f;
+}

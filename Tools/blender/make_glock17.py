@@ -76,7 +76,8 @@ parts = {}
 
 # --- Ствол: тело вращения, канал высверлен, снизу проушина запирания ---
 bl = S["barrel_length"]
-barrel = L.revolve("Barrel", [(-bl, 7.0), (-bl + 6, 7.75), (-18, 7.75), (-14, 9.5), (0, 9.5)], 24)
+# Патронник - утолщение на длину гильзы у казённой части (x=-bl), к дулу ствол тоньше.
+barrel = L.revolve("Barrel", [(-bl, 9.5), (-bl + 14, 9.5), (-bl + 18, 7.75), (-6, 7.75), (0, 7.0)], 24)
 L.boolean(barrel, L.revolve("bore_cut", [(-bl - 2, S["bore_diameter"] / 2), (2, S["bore_diameter"] / 2)], 16))
 barrel = L.boolean(barrel, L.box("lug", (26, 11, 13), (-bl + 20, 0, -11)), "UNION")
 barrel.name = "Barrel"
@@ -88,7 +89,8 @@ top, bot = BORE_Z + 16.0, BORE_Z - 9.5
 slide_profile = [(2, top - 4), (0, top - 9), (0, bot + 3), (-6, bot), (-sl + 8, bot),
                  (-sl, bot + 4), (-sl, top - 3), (-sl + 5, top), (-4, top)]
 slide = L.profile_extrude("Slide", slide_profile, S["slide_width"])
-L.boolean(slide, L.box("ejport", (52, 30, 13), (-58, 4, top - 5)))
+# Окно выброса - над патронником, вырез уходит ниже оси канала, иначе гильзе не выйти вбок.
+L.boolean(slide, L.box("ejport", (44, 30, 19), (-bl + 19, 4, top - 8)))
 L.boolean(slide, L.box("railcut", (sl + 4, S["slide_width"] - 9, 13), (-sl / 2, 0, bot + 5)))
 L.boolean(slide, L.revolve("barrelcut", [(-bl - 2, 10.0), (2, 10.0)], 20))
 slide = L.boolean(slide, L.box("fs", (3.5, 3.5, 5), (-6, 0, top + 1.5)), "UNION")

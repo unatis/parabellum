@@ -1,6 +1,7 @@
 #include "Range/PBLWeaponBench.h"
 
 #include "Ballistics/PBLBallistics.h"
+#include "Weapons/PBLEjectedCase.h"
 #include "Ballistics/PBLRecoil.h"
 #include "Ballistics/PBLRecoilSettings.h"
 #include "Ballistics/PBLWeaponDataSubsystem.h"
@@ -76,6 +77,7 @@ void APBLWeaponBench::Tick(float DeltaSeconds)
 		// Цикл считается в реальном времени, а показывается замедленно: иначе всё укладывается в три кадра.
 		PBLCycle::Step(Cycle, Firearm, DeltaSeconds * TimeScale);
 		ApplyCyclePose();
+		if (!bCaseEjected && Cycle.X >= EjectTravel_m) { EjectCase(); }
 		if (!Cycle.IsRunning())
 		{
 			Message = FString::Printf(TEXT("цикл завершён за %.1f мс -> предельный темп %.0f выстр/мин"),
@@ -265,6 +267,11 @@ void APBLWeaponBench::FireCycle()
 	// Импульс тот самый, что даёт отдачу при стрельбе: пуля плюс пороховые газы.
 	const float V0 = PBLBallistics::MuzzleVelocity(*C, F->Barrel_m);
 	const FPBLRecoilInfo R = PBLRecoil::Compute(*C, *F, V0, UPBLRecoilSettings::Get().Hold(F->Hold));
+	Cartridge = *C;
+	// Патрон выходит из патронника, пройдя собственную длину; дальше донце встречает отражатель.
+	EjectTravel_m = C->CaseLength_m + 0.003f;
+	bCaseEjected = false;
+	CaseMesh = APBLEjectedCase::CaseMeshFor(F->Cartridge);
 	bCycleFrozen = false;
 	PBLCycle::Fire(Cycle, Firearm, R.Impulse_Ns);
 	if (!Cycle.IsRunning())
@@ -337,6 +344,7 @@ void APBLWeaponBench::FreezeCycle(float Milliseconds)
 	for (int32 i = 0; i < 100000 && Cycle.IsRunning() && Cycle.T < Target; ++i)
 	{
 		PBLCycle::Step(Cycle, Firearm, 0.0002f);
+		if (!bCaseEjected && Cycle.X >= EjectTravel_m) { EjectCase(); }
 	}
 	ApplyCyclePose();
 	bCycleFrozen = Cycle.IsRunning();
@@ -353,4 +361,28 @@ void APBLWeaponBench::FreezeCycle(float Milliseconds)
 			}
 		}
 	}
+}
+
+void APBLWeaponBench::EjectCase()
+{
+	bCaseEjected = true;
+	if (!CaseMesh) { return; }
+	// Назад гильза уходит со скоростью затвора - это прямо из расчёта цикла. Отражатель разворачивает
+	// её вбок и вверх на углы из данных: сам удар отражателя мы не считаем.
+	const float R = FMath::DegreesToRadians(Firearm.EjectRight_deg);
+	const float U = FMath::DegreesToRadians(Firearm.EjectUp_deg);
+	const FVector DirModel(-FMath::Cos(R) * FMath::Cos(U), FMath::Sin(R) * FMath::Cos(U), FMath::Sin(U));
+
+	const FTransform& T = Pivot->GetComponentTransform();
+	const FVector Port = T.TransformPosition(Firearm.EjectPort_m * 100.0f);
+	// Образец на стенде увеличен, гильза увеличена так же - иначе она вылетает как песчинка.
+	const float Speed_cms = Cycle.V * 100.0f * DisplayScale;
+	const FVector Vel = T.TransformVectorNoScale(DirModel) * Speed_cms;
+	const FVector Spin = T.TransformVectorNoScale(FVector(0.0f, 0.0f, 1.0f)) * (Firearm.EjectSpin_rps * 360.0f);
+
+	APBLEjectedCase::Eject(GetWorld(), FTransform(T.Rotator(), Port), Vel, Spin,
+		Cartridge.CaseMass_kg, CaseMesh, DisplayScale, 20.0f, TimeScale);
+	Message = FString::Printf(TEXT("гильза пошла на ходе %.1f мм, скорость затвора %.2f м/с"),
+		Cycle.X * 1000.0f, Cycle.V);
+	UE_LOG(LogTemp, Display, TEXT("PBL Bench: %s"), *Message);
 }

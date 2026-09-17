@@ -139,6 +139,9 @@ protected:
 
 	void FinishReload();
 	void PlayLocalFireFX();
+	/** Выброс стреляной гильзы из окна выброса. Косметика: только у себя, серверу не уходит. */
+	void EjectCase();
+	UPROPERTY(Transient) TObjectPtr<class UStaticMesh> CaseMesh;
 	void PlayIdle();
 	FTimerHandle IdleTimer;
 	void SpawnImpact(const FVector& Location, const FVector& Normal, bool bHitCharacter);
