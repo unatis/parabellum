@@ -13,15 +13,33 @@ importlib.reload(L)
 OUT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Import", "Glock17Parts"))
 os.makedirs(OUT, exist_ok=True)
 
-# --- Размеры из открытых данных производителя, мм ---
+# --- Размеры, мм. У каждого значения помечен источник:
+#   spec  - официальные данные производителя или стандарт на патрон
+#   blue  - размерный производственный чертёж
+#   deriv - вычислено из других известных размеров
+#   est   - обоснованное предположение по фотографиям и пропорциям (подлежит уточнению)
 SPEC = {
-    "overall_length": 202.0, "height_with_mag": 138.0, "slide_width": 25.5, "overall_width": 34.0,
-    "barrel_length": 114.0, "sight_radius": 165.0, "slide_length": 186.0, "slide_height": 25.5,
-    "grip_angle_deg": 22.0, "bore_diameter": 9.02, "barrel_outer": 15.5,
-    "mag_capacity": 17, "mag_length": 108.0, "mag_width": 27.0, "mag_thickness": 10.5,
-    "trigger_reach": 72.0, "weight_empty_g": 638.0,
+    "overall_length":  (202.0, "spec"), "height_with_mag": (138.0, "spec"),
+    "overall_width":   (34.0,  "spec"), "slide_width":     (25.5,  "spec"),
+    "barrel_length":   (114.0, "spec"), "sight_radius":    (165.0, "spec"),
+    "grip_angle_deg":  (22.0,  "spec"), "bore_diameter":   (9.02,  "spec"),
+    "mag_capacity":    (17,    "spec"), "trigger_reach":   (72.0,  "spec"),
+    "weight_empty_g":  (638.0, "spec"),
+    "slide_length":    (186.0, "est"),  "slide_height":    (25.5,  "est"),
+    "barrel_outer":    (15.5,  "est"),  "mag_length":      (108.0, "est"),
+    "mag_width":       (27.0,  "est"),  "mag_thickness":   (10.5,  "est"),
 }
-S = SPEC
+
+
+class SpecView(dict):
+    """S["ключ"] отдаёт значение, S.src("ключ") - источник."""
+    def __getitem__(self, k):
+        return SPEC[k][0]
+    def src(self, k):
+        return SPEC[k][1]
+
+
+S = SpecView()
 
 # --- Отличия поколений: то, что реально меняется в геометрии (открытые данные производителя) ---
 GENERATIONS = {
@@ -188,7 +206,21 @@ for k, v in meas.items():
     good = abs(err) <= 2.0
     ok = ok and good
     print(f"@@ {k:18s} model {v:6.1f}  spec {ref:6.1f}  {err:+5.1f}%  {'OK' if good else 'FAIL'}")
-report["_check"] = {k: {"model": round(v, 1), "spec": S[k]} for k, v in meas.items()}
+report["_check"] = {k: {"model": round(v, 1), "spec": S[k], "source": S.src(k)} for k, v in meas.items()}
+
+# --- Полнота данных: сколько размеров из документов, сколько реконструировано ---
+by_src = {}
+for k, (_, src) in SPEC.items():
+    by_src.setdefault(src, []).append(k)
+documented = len(by_src.get("spec", [])) + len(by_src.get("blue", []))
+completeness = 100.0 * documented / len(SPEC)
+print(f"@@ --- data provenance: {documented}/{len(SPEC)} dimensions documented ({completeness:.0f}%) ---")
+for src in ("spec", "blue", "deriv", "est"):
+    if by_src.get(src):
+        print(f"@@ {src:6s} {len(by_src[src]):2d}: {', '.join(sorted(by_src[src]))}")
+report["_provenance"] = {"sources": {k: v[1] for k, v in SPEC.items()},
+                         "documented": documented, "total": len(SPEC),
+                         "completeness_pct": round(completeness, 1)}
 
 # --- Порядок и направление съёма при неполной разборке ---
 report["_fieldstrip"] = [
@@ -205,7 +237,7 @@ bpy.ops.export_scene.fbx(filepath=os.path.join(OUT, f"Glock17_{GEN}.fbx"), use_s
                          apply_unit_scale=True, apply_scale_options="FBX_SCALE_NONE", axis_forward="-Y", axis_up="Z",
                          bake_space_transform=True, mesh_smooth_type="FACE")
 with open(os.path.join(OUT, f"Glock17_{GEN}.json"), "w", encoding="utf-8") as f:
-    json.dump({"generation": GEN, "gen_features": G, "spec": SPEC, "parts": report}, f, indent=1, ensure_ascii=False)
+    json.dump({"generation": GEN, "gen_features": G, "spec": {k: v[0] for k, v in SPEC.items()}, "parts": report}, f, indent=1, ensure_ascii=False)
 
 # --- Разнесённый вид: детали раздвигаются по тем же осям, что заданы для разборки в игре ---
 EXPLODE = float(os.environ.get("PBL_EXPLODE", "0"))
