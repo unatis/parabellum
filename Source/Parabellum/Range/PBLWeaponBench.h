@@ -51,6 +51,8 @@ public:
 	void FireCycle();
 	/** Переключить замедление показа по кругу. */
 	void CycleSlowMotion();
+	/** Разрез: спрятать наружные детали, чтобы видеть механизм и боеприпас внутри. */
+	void ToggleCutaway();
 	/** Остановить цикл на заданной миллисекунде от выстрела и держать позу. */
 	void FreezeCycle(float Milliseconds);
 	/** Задать замедление показа напрямую. */
@@ -58,6 +60,8 @@ public:
 	bool IsCycling() const { return Cycle.IsRunning(); }
 	/** Строка состояния цикла для HUD. */
 	FString GetCycleLine() const;
+	/** Патроны: сколько в магазине и есть ли в патроннике. */
+	FString GetAmmoLine() const;
 
 	int32 GetStep() const { return Step; }
 	int32 GetStepCount() const { return Steps.Num(); }
@@ -71,6 +75,10 @@ protected:
 	virtual void BeginPlay() override;
 
 	void BuildParts();
+	/** Патроны в магазине и в патроннике - по раскладке из AmmoLayout.csv. */
+	void BuildAmmo();
+	/** Разложить патроны: они едут с магазином при разборке и досылаются при накате. */
+	void ApplyAmmoPose();
 	void RefreshTargets();
 
 	UPROPERTY(VisibleAnywhere, Category = "Parabellum|Bench")
@@ -104,6 +112,16 @@ protected:
 	float EjectTravel_m = 0.0f;
 	bool bCaseEjected = false;
 	UPROPERTY(Transient) TObjectPtr<class UStaticMesh> CaseMesh;
+
+	FPBLAmmoLayout Ammo;
+	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> MagRounds;
+	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> ChamberRound;
+	TArray<FVector> MagRoundBase;
+	FVector ChamberBase = FVector::ZeroVector;
+	/** Сколько патронов осталось в магазине и стоит ли патрон в патроннике. */
+	int32 RoundsInMag = 0;
+	bool bChambered = true;
+	bool bCutaway = false;
 	float TimeScale = 0.1f;
 	bool bCycleFrozen = false;
 
@@ -119,5 +137,7 @@ protected:
 	/** Материал подсветки детали под курсором. */
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") TSoftObjectPtr<class UMaterialInterface> HighlightMaterial;
 	/** Замедления показа цикла, переключаются по кругу. */
+	/** Детали, которые прячутся в разрезе: наружные оболочки. */
+	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") TArray<FName> CutawayParts = { TEXT("Frame"), TEXT("Slide"), TEXT("Magazine") };
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") TArray<float> SlowMotionSteps = { 0.1f, 0.03f, 0.01f, 1.0f };
 };

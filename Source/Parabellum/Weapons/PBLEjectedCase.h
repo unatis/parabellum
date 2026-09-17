@@ -6,6 +6,13 @@
 
 class UStaticMeshComponent;
 
+namespace PBLAmmo
+{
+	/** Меш боеприпаса по имени патрона: 9x19_124_FMJ + "Case" -> /Game/Weapons/Ammo/Case9x19.
+	    nullptr, если модели для этого калибра ещё нет. */
+	PARABELLUM_API UStaticMesh* MeshFor(FName Cartridge, const TCHAR* Kind);
+}
+
 /**
  * Стреляная гильза: физическое тело, вылетающее из окна выброса.
  *

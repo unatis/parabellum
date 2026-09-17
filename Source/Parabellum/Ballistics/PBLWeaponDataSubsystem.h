@@ -27,6 +27,8 @@ public:
 	/** Шаги разборки образца на нужной стадии, в порядке съёма. */
 	TArray<FPBLWeaponPartStep> PartSteps(FName Weapon, FName Stage) const;
 	const TArray<FPBLWeaponPartStep>& AllPartSteps() const { return PartSteps_; }
+	/** Раскладка боеприпаса образца (AmmoLayout.csv); nullptr, если её нет. */
+	const FPBLAmmoLayout* FindAmmoLayout(FName Weapon) const { return AmmoLayouts.Find(Weapon); }
 	/** Слои части тела (BodyLayers.csv), в порядке прохождения спереди назад; nullptr если части нет. */
 	const TArray<FPBLBodyLayer>* FindBodyPart(FName Part) const { return BodyParts.Find(Part); }
 	const TMap<FName, TArray<FPBLBodyLayer>>& AllBodyParts() const { return BodyParts; }
@@ -45,4 +47,5 @@ private:
 	TMap<FName, TArray<FPBLBodyLayer>> BodyParts;
 	TMap<FName, float> BodyPartThickness_m;
 	TArray<FPBLWeaponPartStep> PartSteps_;
+	TMap<FName, FPBLAmmoLayout> AmmoLayouts;
 };

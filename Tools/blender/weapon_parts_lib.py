@@ -115,6 +115,19 @@ def move(ob, v):
     return ob
 
 
+def rotate(ob, angle_deg, axis='Y'):
+    """Поворот геометрии вокруг оси, проходящей через ноль. Тоже без операторов."""
+    from mathutils import Matrix
+    ob.data.transform(Matrix.Rotation(math.radians(angle_deg), 4, axis))
+    return ob
+
+
+def place(ob, angle_deg, offset, axis='Y'):
+    """Деталь построена в своей системе координат: повернуть и поставить на место."""
+    rotate(ob, angle_deg, axis)
+    return move(ob, offset)
+
+
 def rrect_ring(cx, cy, z, w, d, r, n=6):
     """Кольцо-скруглённый прямоугольник в плоскости XY на высоте z. w - вдоль X, d - вдоль Y."""
     pts = []

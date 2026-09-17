@@ -23,6 +23,7 @@ void APBLWeaponBench::BeginPlay()
 {
 	Super::BeginPlay();
 	BuildParts();
+	BuildAmmo();
 	RefreshTargets();
 }
 
@@ -78,10 +79,13 @@ void APBLWeaponBench::Tick(float DeltaSeconds)
 		PBLCycle::Step(Cycle, Firearm, DeltaSeconds * TimeScale);
 		ApplyCyclePose();
 		if (!bCaseEjected && Cycle.X >= EjectTravel_m) { EjectCase(); }
+		ApplyAmmoPose();
 		if (!Cycle.IsRunning())
 		{
-			Message = FString::Printf(TEXT("цикл завершён за %.1f мс -> предельный темп %.0f выстр/мин"),
-				Cycle.CycleTime * 1000.0f, Cycle.CycleTime > 0.0f ? 60.0f / Cycle.CycleTime : 0.0f);
+			// Затвор дошёл вперёд: верхний патрон дослан, в магазине стало на один меньше.
+			if (RoundsInMag > 0) { --RoundsInMag; bChambered = true; }
+			Message = FString::Printf(TEXT("цикл завершён за %.1f мс -> предельный темп %.0f выстр/мин; в магазине %d"),
+				Cycle.CycleTime * 1000.0f, Cycle.CycleTime > 0.0f ? 60.0f / Cycle.CycleTime : 0.0f, RoundsInMag);
 		}
 		return;
 	}
@@ -99,6 +103,7 @@ void APBLWeaponBench::Tick(float DeltaSeconds)
 			bMoving = true;
 		}
 	}
+	ApplyAmmoPose();
 	if (!bMoving) { SetActorTickEnabled(false); }
 }
 
@@ -135,6 +140,8 @@ void APBLWeaponBench::ResetView()
 {
 	Pivot->SetRelativeRotation(FRotator::ZeroRotator);
 	Step = 0;
+	RoundsInMag = Ammo.Capacity;
+	bChambered = true;
 	RefreshTargets();
 }
 
@@ -279,6 +286,7 @@ void APBLWeaponBench::FireCycle()
 		Message = FString::Printf(TEXT("схема %s приводится газом - цикл не смоделирован"), *Firearm.ActionScheme.ToString());
 		return;
 	}
+	bChambered = false;   // патрон из патронника стал гильзой
 	Message = FString::Printf(TEXT("выстрел: импульс %.2f Н*с -> затвор пошёл назад со скоростью %.2f м/с"), R.Impulse_Ns, Cycle.V);
 	SetActorTickEnabled(true);
 }
@@ -385,4 +393,103 @@ void APBLWeaponBench::EjectCase()
 	Message = FString::Printf(TEXT("гильза пошла на ходе %.1f мм, скорость затвора %.2f м/с"),
 		Cycle.X * 1000.0f, Cycle.V);
 	UE_LOG(LogTemp, Display, TEXT("PBL Bench: %s"), *Message);
+}
+
+// ---------------- Боеприпас: магазин и патронник ----------------
+
+void APBLWeaponBench::BuildAmmo()
+{
+	UPBLWeaponDataSubsystem* Data = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
+	const FPBLAmmoLayout* A = Data ? Data->FindAmmoLayout(WeaponName) : nullptr;
+	if (!A || !A->IsValid()) { return; }
+	Ammo = *A;
+	const FString N = Ammo.RoundMesh.ToString();
+	UStaticMesh* RM = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Weapons/Ammo/%s.%s"), *N, *N));
+	if (!RM) { UE_LOG(LogTemp, Warning, TEXT("PBL Bench: нет меша патрона %s"), *N); return; }
+
+	auto MakeRound = [this, RM](const FVector& Loc_cm, float Pitch_deg) -> UStaticMeshComponent*
+	{
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetStaticMesh(RM);
+		// Патроны - не детали разборки: курсор должен проходить сквозь них к деталям.
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->RegisterComponent();
+		C->AttachToComponent(Pivot, FAttachmentTransformRules::KeepRelativeTransform);
+		C->SetRelativeLocationAndRotation(Loc_cm, FRotator(Pitch_deg, 0.0f, 0.0f));
+		return C;
+	};
+
+	ChamberBase = Ammo.Chamber_m * 100.0f;
+	ChamberRound = MakeRound(ChamberBase, Ammo.ChamberPitch_deg);
+	for (int32 i = 0; i < Ammo.Capacity; ++i)
+	{
+		// Двухрядная укладка: ряды смещены вбок на половину стагера в разные стороны.
+		const FVector P = (Ammo.StackFirst_m + Ammo.StackPitch_m * i + Ammo.StackLateral_m * ((i % 2) ? 0.5f : -0.5f)) * 100.0f;
+		MagRoundBase.Add(P);
+		MagRounds.Add(MakeRound(P, Ammo.RoundPitch_deg));
+	}
+	RoundsInMag = Ammo.Capacity;
+	UE_LOG(LogTemp, Display, TEXT("PBL Bench: снаряжено %d патронов %s + патронник"), Ammo.Capacity, *N);
+	UE_LOG(LogTemp, Display, TEXT("PBL Ammo: патронник %s; верхний в магазине %s; нижний %s; наклон %.1f град"),
+		*ChamberBase.ToCompactString(), *MagRoundBase[0].ToCompactString(),
+		*MagRoundBase.Last().ToCompactString(), Ammo.RoundPitch_deg);
+}
+
+void APBLWeaponBench::ApplyAmmoPose()
+{
+	if (MagRounds.Num() == 0) { return; }
+	// Патроны едут вместе со своими вместилищами: магазином и стволом.
+	auto PartOffset = [this](FName Part) -> FVector
+	{
+		const TObjectPtr<UStaticMeshComponent>* C = PartComps.Find(Part);
+		return (C && *C) ? (*C)->GetRelativeLocation() : FVector::ZeroVector;
+	};
+	const FVector MagOff = PartOffset(TEXT("Magazine"));
+	const FVector BarrelOff = PartOffset(TEXT("Barrel"));
+
+	// Досылание: на накате затвор забирает верхний патрон из магазина и ведёт его в патронник.
+	float Feed = 0.0f;
+	if (Cycle.IsRunning() && Cycle.Phase == EPBLCyclePhase::Returning && EjectTravel_m > 0.0f && RoundsInMag > 0)
+	{
+		Feed = FMath::Clamp(1.0f - Cycle.X / EjectTravel_m, 0.0f, 1.0f);
+	}
+
+	for (int32 i = 0; i < MagRounds.Num(); ++i)
+	{
+		UStaticMeshComponent* C = MagRounds[i];
+		if (!C) { continue; }
+		C->SetVisibility(i < RoundsInMag);
+		if (i == 0 && Feed > 0.0f)
+		{
+			C->SetRelativeLocation(FMath::Lerp(MagRoundBase[0] + MagOff, ChamberBase + BarrelOff, Feed));
+			C->SetRelativeRotation(FRotator(FMath::Lerp(Ammo.RoundPitch_deg, Ammo.ChamberPitch_deg, Feed), 0.0f, 0.0f));
+		}
+		else
+		{
+			C->SetRelativeLocation(MagRoundBase[i] + MagOff);
+			C->SetRelativeRotation(FRotator(Ammo.RoundPitch_deg, 0.0f, 0.0f));
+		}
+	}
+	if (ChamberRound)
+	{
+		ChamberRound->SetVisibility(bChambered);
+		ChamberRound->SetRelativeLocation(ChamberBase + BarrelOff);
+	}
+}
+
+FString APBLWeaponBench::GetAmmoLine() const
+{
+	if (Ammo.Capacity <= 0) { return FString(); }
+	return FString::Printf(TEXT("магазин %d из %d, патронник %s"), RoundsInMag, Ammo.Capacity,
+		bChambered ? TEXT("снаряжён") : TEXT("пуст"));
+}
+
+void APBLWeaponBench::ToggleCutaway()
+{
+	bCutaway = !bCutaway;
+	for (const FName& P : CutawayParts)
+	{
+		if (TObjectPtr<UStaticMeshComponent>* C = PartComps.Find(P)) { if (*C) { (*C)->SetVisibility(!bCutaway); } }
+	}
+	Message = bCutaway ? TEXT("разрез: наружные детали сняты с показа") : TEXT("разрез выключен");
 }

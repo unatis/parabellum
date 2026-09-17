@@ -450,6 +450,20 @@ AActor* APBLWeapon::SpawnSegment(const FVector& From, const FVector& To, float T
 	return A;
 }
 
+// Начальная скорость из консоли: то же, что ползунок в окне настройки (F2), но доступно скрипту.
+static FAutoConsoleCommandWithWorldAndArgs CmdWeaponV0(TEXT("pbl.Weapon.V0"),
+	TEXT("Override muzzle velocity for testing: pbl.Weapon.V0 <m/s> (0 - back to the cartridge data)"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		APBLCharacter* C = World ? Cast<APBLCharacter>(World->GetFirstPlayerController() ? World->GetFirstPlayerController()->GetPawn() : nullptr) : nullptr;
+		APBLWeapon* W = C ? C->GetWeapon() : nullptr;
+		if (!W) { return; }
+		FPBLWeaponTuning T = W->GetTuning();
+		T.V0_mps = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.0f;
+		W->ApplyTuning(T);
+		UE_LOG(LogTemp, Display, TEXT("PBL: начальная скорость %.0f м/с"), W->GetMuzzleVelocity());
+	}));
+
 static FAutoConsoleCommandWithWorld CmdClearTrails(TEXT("pbl.Range.ClearTrails"), TEXT("Remove bullet trajectory trails"),
 	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
 	{

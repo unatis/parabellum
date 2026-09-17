@@ -1,0 +1,2 @@
+Weapon,Generation,RoundMesh,Capacity,ChamberX_mm,ChamberY_mm,ChamberZ_mm,ChamberPitch_deg,StackX_mm,StackY_mm,StackZ_mm,PitchX_mm,PitchY_mm,PitchZ_mm,LatX_mm,LatY_mm,LatZ_mm,RoundPitch_deg
+Glock17,Gen5,Round9x19,17,-99.155,0.0,0.0,0.0,-143.993,0.0,-19.981,-1.375,0.0,-3.948,0.0,9.04,0.0,-19.199

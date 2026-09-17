@@ -74,6 +74,19 @@ with open(out_csv, "w", encoding="utf-8", newline="\n") as f:
     f.write("\n".join(rows) + "\n")
 log(f"wrote {out_csv}: {len(rows) - 1} steps")
 
+# --- Раскладка боеприпаса: где лежит патрон в патроннике и патроны в магазине ---
+am = meta["parts"].get("_ammo")
+if am:
+    cols = ("Weapon,Generation,RoundMesh,Capacity,ChamberX_mm,ChamberY_mm,ChamberZ_mm,ChamberPitch_deg,"
+            "StackX_mm,StackY_mm,StackZ_mm,PitchX_mm,PitchY_mm,PitchZ_mm,LatX_mm,LatY_mm,LatZ_mm,RoundPitch_deg")
+    vals = [WEAPON, GEN, am["round"], am["capacity"], *am["chamber"], am["chamber_pitch_deg"],
+            *am["stack_first"], *am["stack_pitch"], *am["stack_lateral"], am["round_pitch_deg"]]
+    out_ammo = os.path.join(ROOT, "Content", "Data", "AmmoLayout.csv")
+    with open(out_ammo, "w", encoding="utf-8", newline="\n") as f:
+        f.write(cols + "\n" + ",".join(str(v) for v in vals) + "\n")
+    g = am.get("geometry", {})
+    log(f"wrote {out_ammo}: {am['capacity']} патронов, наклон {g.get('tilt_deg')} град, шаг {g.get('pitch_mm')} мм")
+
 prov = meta["parts"].get("_provenance", {})
 log(f"provenance: {prov.get('documented')}/{prov.get('total')} documented ({prov.get('completeness_pct')}%)")
 log("DONE")

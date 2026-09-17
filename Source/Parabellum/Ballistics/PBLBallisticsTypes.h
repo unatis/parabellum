@@ -102,6 +102,34 @@ struct FPBLFirearmData
 	bool IsRecoilOperated() const { return ActionScheme == TEXT("Browning") || ActionScheme == TEXT("Blowback"); }
 };
 
+/**
+ * Раскладка боеприпаса в образце (Content/Data/AmmoLayout.csv, генерируется тем же скриптом Blender,
+ * что и модель). Всё в системе координат модели, метры: ноль - дульный срез, +X вперёд, +Y вправо.
+ * Патрон i в магазине: StackFirst + Pitch*i + Lateral*(i чётный ? -0.5 : +0.5).
+ */
+USTRUCT(BlueprintType)
+struct FPBLAmmoLayout
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FName Weapon;
+	UPROPERTY() FName Generation;
+	/** Имя меша патрона в /Game/Weapons/Ammo. */
+	UPROPERTY() FName RoundMesh;
+	UPROPERTY() int32 Capacity = 0;
+	/** Патрон в патроннике. */
+	UPROPERTY() FVector Chamber_m = FVector::ZeroVector;
+	UPROPERTY() float ChamberPitch_deg = 0.0f;
+	/** Верхний патрон магазина, шаг вниз по столбу и смещение между рядами. */
+	UPROPERTY() FVector StackFirst_m = FVector::ZeroVector;
+	UPROPERTY() FVector StackPitch_m = FVector::ZeroVector;
+	UPROPERTY() FVector StackLateral_m = FVector::ZeroVector;
+	/** Наклон патронов в магазине: они стоят поперёк его стенок, а магазин наклонён. */
+	UPROPERTY() float RoundPitch_deg = 0.0f;
+
+	bool IsValid() const { return Capacity > 0 && !RoundMesh.IsNone(); }
+};
+
 /** Материал среды (Content/Data/Materials.csv). Пока одна модель - Понселе для мягких сред (гель, вода, ткани). */
 USTRUCT(BlueprintType)
 struct FPBLMaterialData

@@ -23,15 +23,20 @@ APBLEjectedCase::APBLEjectedCase()
 	Mesh->SetCastShadow(true);
 }
 
-UStaticMesh* APBLEjectedCase::CaseMeshFor(FName Cartridge)
+UStaticMesh* PBLAmmo::MeshFor(FName Cartridge, const TCHAR* Kind)
 {
-	// Имя патрона вида 9x19_124_FMJ: калибр до первого подчёркивания и есть имя модели гильзы.
+	// Имя патрона вида 9x19_124_FMJ: калибр до первого подчёркивания и есть имя модели.
 	FString Caliber = Cartridge.ToString();
 	int32 Cut = INDEX_NONE;
 	if (Caliber.FindChar(TEXT('_'), Cut)) { Caliber = Caliber.Left(Cut); }
-	const FString Path = FString::Printf(TEXT("/Game/Weapons/Ammo/Case%s.Case%s"), *Caliber, *Caliber);
-	// Модель есть пока только для 9x19; для остальных калибров гильза просто не появится.
+	const FString Path = FString::Printf(TEXT("/Game/Weapons/Ammo/%s%s.%s%s"), Kind, *Caliber, Kind, *Caliber);
+	// Модели есть пока только для 9x19; для остальных калибров просто ничего не покажем.
 	return LoadObject<UStaticMesh>(nullptr, *Path);
+}
+
+UStaticMesh* APBLEjectedCase::CaseMeshFor(FName Cartridge)
+{
+	return PBLAmmo::MeshFor(Cartridge, TEXT("Case"));
 }
 
 APBLEjectedCase* APBLEjectedCase::Eject(UWorld* World, const FTransform& At, const FVector& Velocity,

@@ -1,5 +1,7 @@
 #include "Weapons/PBLProjectile.h"
 
+#include "Weapons/PBLEjectedCase.h"
+
 #include "Ballistics/PBLBallistics.h"
 #include "Ballistics/PBLPenetration.h"
 #include "Ballistics/PBLWeaponDataSubsystem.h"
@@ -24,7 +26,7 @@ APBLProjectile::APBLProjectile()
 	if (Sphere.Succeeded()) { Visual->SetStaticMesh(Sphere.Object); }
 	Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Visual->SetCastShadow(false);
-	Visual->SetRelativeScale3D(FVector(0.03f));   // 3 см шарик; на скорости всё равно виден только трейсер
+	Visual->SetRelativeScale3D(FVector(0.03f));   // запасной шарик, если модели пули для калибра нет
 	Visual->SetVisibility(false);
 }
 
@@ -45,6 +47,20 @@ void APBLProjectile::Launch(APBLWeapon* InWeapon, const FPBLCartridgeData& InCar
 	bAuthoritative = bInAuthoritative;
 	BaseDamage = InBaseDamage;
 	SetActorLocation(Origin);
+
+	// Пуля в полёте - настоящая модель в натуральную величину. На 350 м/с её всё равно не разглядеть,
+	// но на медленных скоростях и в замедлении видно и саму пулю, и то, как она идёт носом вперёд.
+	if (!bAuthoritative)
+	{
+		if (UStaticMesh* BulletMesh = PBLAmmo::MeshFor(Cartridge.Name, TEXT("Bullet")))
+		{
+			Visual->SetStaticMesh(BulletMesh);
+			Visual->SetRelativeScale3D(FVector::OneVector);
+			Visual->SetVisibility(true);
+		}
+		// Пуля стабилизирована вращением и идёт носом по вектору скорости.
+		SetActorRotation(Velocity.Rotation());
+	}
 }
 
 void APBLProjectile::Tick(float DeltaSeconds)
@@ -84,6 +100,8 @@ void APBLProjectile::Tick(float DeltaSeconds)
 	}
 
 	SetActorLocation(NewPos_cm);
+	// Пуля идёт носом по скорости: к концу траектории вектор уже смотрит вниз, и модель тоже.
+	if (Visual->IsVisible()) { SetActorRotation(State.Velocity.Rotation()); }
 	if (Weapon) { Weapon->DrawTracerSegment(bFirstTracer ? Weapon->GetMuzzleLocation() : PrevPos_cm, NewPos_cm); bFirstTracer = false; }
 	if (State.Time > MaxFlightTime || NewPos_cm.Z < -100000.0f)
 	{

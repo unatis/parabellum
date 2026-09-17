@@ -26,8 +26,7 @@ SPEC = {
     "mag_capacity":    (17,    "spec"), "trigger_reach":   (72.0,  "spec"),
     "weight_empty_g":  (638.0, "spec"),
     "slide_length":    (186.0, "est"),  "slide_height":    (25.5,  "est"),
-    "barrel_outer":    (15.5,  "est"),  "mag_length":      (108.0, "est"),
-    "mag_width":       (27.0,  "est"),  "mag_thickness":   (10.5,  "est"),
+    "barrel_outer":    (15.5,  "est"),
     # Внутренние детали: расположение выведено из схемы Браунинга с перекосом ствола и патента
     # Гастона Глока US 4,539,889; размеры - реконструкция по пропорциям, подлежат обмеру.
     "striker_length":  (62.0,  "est"),  "striker_dia":      (5.5,  "est"),
@@ -106,7 +105,20 @@ GRIP_BOT_Z = TOP_Z - S["height_with_mag"]  # низ донышка магази�
 grip_top_x = -132.0
 grip_bot_z = GRIP_BOT_Z + 5.0              # рамка на 5 мм выше донышка
 dx = math.tan(ga) * abs(grip_bot_z - (BORE_Z - 34))
-mag_x_pre = -166.0   # ось магазина внутри рукояти
+
+# --- Патрон и магазин ---------------------------------------------------------------------------
+# Сечение магазина не подбирается на глаз: оно выводится из патрона и ёмкости. Патрон лежит поперёк
+# магазина, значит перед-зад изнутри = длина патрона плюс зазор. Двухрядная укладка со смещением s
+# даёт шаг по высоте p из прямоугольного треугольника: s^2 + p^2 = d^2, где d - диаметр гильзы.
+CART = {"round_len": 29.69, "case_dia": 9.96}     # 9x19 по стандарту SAAMI/CIP
+MAG_WALL = 1.0
+MAG_IN_W = CART["round_len"] + 1.6                # перед-зад изнутри
+MAG_IN_T = 19.0                                   # бок изнутри (est: внешняя ширина 21 мм)
+MAG_OUT_W = MAG_IN_W + 2 * MAG_WALL
+MAG_OUT_T = MAG_IN_T + 2 * MAG_WALL
+MAG_STAGGER = MAG_IN_T - CART["case_dia"]         # боковое смещение рядов
+MAG_PITCH = math.sqrt(CART["case_dia"] ** 2 - MAG_STAGGER ** 2)
+MAG_LIP = 4.0                                     # губки: верх магазина, удерживающий верхний патрон
 frame_profile = [
     (-4, bot - 1), (-4, bot - 9), (-52, bot - 9), (-58, bot - 26),
     (-64, bot - 30), (-96, bot - 32), (-104, bot - 26), (-106, bot - 10),
@@ -114,7 +126,18 @@ frame_profile = [
     (-196, bot - 10), (-202, bot + 2), (-202, bot + 12), (-6, bot + 12),   # хвостовик: полная длина 202 мм
 ]
 frame = L.profile_extrude("Frame", frame_profile, 30.0)
-L.boolean(frame, L.box("magwell", (24, 22, 100), (grip_top_x - 6 - dx / 2, 0, grip_bot_z + 48)))
+
+# Магазин идёт параллельно передней грани рукояти, а не вертикально: отсюда наклон и длина.
+MAG_TILT = math.degrees(math.atan2(dx, abs(grip_bot_z - (bot - 12))))
+MAG_TOP_Z = bot - 2.0
+# Магазин наклонён, поэтому вниз первым уходит его нижний передний угол - от него и считаем длину,
+# чтобы донышко встало вровень с низом рукояти, а не торчало.
+MAG_H = ((MAG_TOP_Z - GRIP_BOT_Z) - (MAG_OUT_W + 2.0) / 2 * math.sin(math.radians(MAG_TILT)))     / math.cos(math.radians(MAG_TILT))
+MAG_TOP_X = (grip_top_x + 8 - dx + (-196.0)) / 2 + math.sin(math.radians(MAG_TILT)) * MAG_H
+MAG_PLACE = (MAG_TILT, (MAG_TOP_X, 0, MAG_TOP_Z))   # ноль магазина - центр его верхнего среза
+
+# Шахта под магазин: тот же наклон и то же сечение плюс зазор.
+L.boolean(frame, L.place(L.box("magwell", (MAG_OUT_W + 1.0, MAG_OUT_T + 1.0, MAG_H), (0, 0, -MAG_H / 2)), *MAG_PLACE))
 L.boolean(frame, L.box("tguard", (40, 34, 26), (-82, 0, bot - 14)))
 
 # --- Отличия поколения ---
@@ -138,7 +161,8 @@ if G["finger_grooves"]:
 if G["magwell_flare"]:
     # Расширенная горловина магазина: Gen5
     # Горловина расширяется вниз и назад, но не выходит за габаритную ширину 34 мм
-    flare = L.box("flare", (38, 32, 10), (mag_x_pre, 0, grip_bot_z + 3))
+    mag_bot_x = MAG_TOP_X - math.sin(math.radians(MAG_TILT)) * MAG_H
+    flare = L.box("flare", (38, 32, 10), (mag_bot_x, 0, grip_bot_z + 3))
     frame = L.boolean(frame, flare, "UNION")
 # --- Эргономика рукояти: вместо плоской плиты - оболочка по сечениям (перед-зад 45 мм, бок 30 мм, талия уже) ---
 GRIP_TOP_Z = bot - 14
@@ -241,13 +265,71 @@ bpy.context.view_layer.objects.active = rsa
 bpy.ops.object.transform_apply(location=True)
 parts["RecoilSpring"] = rsa
 
-# --- Магазин на 17 патронов с донышком ---
-ml, mw, mt = S["mag_length"], S["mag_width"], S["mag_thickness"]
-mag_x = mag_x_pre
-mag = L.box("Magazine", (mw, mt, ml), (mag_x, 0, GRIP_BOT_Z + 4 + ml / 2))
-mag = L.boolean(mag, L.box("floor", (mw + 4, mt + 5, 8), (mag_x, 0, GRIP_BOT_Z + 4)), "UNION")
+# --- Магазин: коробка с губками, подаватель и пружина -------------------------------------------
+# Всё строится в своей системе координат (ноль - центр верхнего среза, вниз по -Z) и ставится на
+# место одним поворотом. Патроны в игре раскладываются по этим же числам - см. report["_ammo"].
+CAP = S["mag_capacity"]
+MAG_STACK_H = (CAP - 1) * MAG_PITCH + CART["case_dia"]      # высота столба патронов
+MAG_TOP_ROUND_Z = -(MAG_LIP + CART["case_dia"] / 2)         # центр верхнего патрона
+FOLLOWER_H = 10.0
+mag = L.box("Magazine", (MAG_OUT_W, MAG_OUT_T, MAG_H), (0, 0, -MAG_H / 2))
+# Полость под патроны: открыта сверху, снизу остаётся дно под донышко.
+L.boolean(mag, L.box("magcav", (MAG_IN_W, MAG_IN_T, MAG_H - MAG_LIP - 4.0), (0, 0, -MAG_LIP - (MAG_H - MAG_LIP - 4.0) / 2)))
+# Губки: сверху остаётся щель шириной с гильзу - она и держит верхний патрон.
+L.boolean(mag, L.box("maglips", (MAG_IN_W, CART["case_dia"], MAG_LIP + 2.0), (0, 0, -(MAG_LIP + 2.0) / 2 + 1.0)))
+mag = L.boolean(mag, L.box("magfloor", (MAG_OUT_W + 2.0, MAG_OUT_T + 2.0, 5.0), (0, 0, -MAG_H + 2.5)), "UNION")
 mag.name = "Magazine"
+L.place(mag, *MAG_PLACE)
 parts["Magazine"] = mag
+
+# Подаватель: полимерная колодка со ступенькой под нижний патрон.
+fol_z = MAG_TOP_ROUND_Z - (CAP - 1) * MAG_PITCH - CART["case_dia"] / 2 - FOLLOWER_H / 2
+fol = L.box("MagFollower", (MAG_IN_W - 0.6, MAG_IN_T - 0.6, FOLLOWER_H), (0, 0, fol_z))
+cradle = L.revolve("folcradle", [(-MAG_IN_W, CART["case_dia"] / 2), (MAG_IN_W, CART["case_dia"] / 2)], 16)
+L.move(cradle, (0, -MAG_STAGGER / 2, fol_z + FOLLOWER_H / 2))
+L.boolean(fol, cradle)
+fol.name = "MagFollower"
+L.place(fol, *MAG_PLACE)
+parts["MagFollower"] = fol
+
+# Пружина подавателя: плоский зигзаг. При полном магазине она сжата почти в пакет - так и показываем.
+spr_top = fol_z - FOLLOWER_H / 2 - 0.5
+spr_bot = -MAG_H + 6.0
+WIRE, ZIGS = 1.2, 5
+amp = MAG_IN_W / 2 - 2.0
+step = (spr_top - spr_bot) / ZIGS
+line = [((amp if i % 2 else -amp), spr_top - i * step) for i in range(ZIGS + 1)]
+prof = [(x, z + WIRE / 2) for (x, z) in line] + [(x, z - WIRE / 2) for (x, z) in reversed(line)]
+spr = L.profile_extrude("MagSpring", prof, MAG_IN_T - 3.0)
+L.place(spr, *MAG_PLACE)
+parts["MagSpring"] = spr
+
+# --- Раскладка боеприпаса: патрон в патроннике и столб патронов в магазине ---
+import mathutils as MUA
+_rot = MUA.Matrix.Rotation(math.radians(MAG_TILT), 4, "Y")
+_off = MUA.Vector((MAG_TOP_X, 0.0, MAG_TOP_Z))
+_first = _rot @ MUA.Vector((0.0, 0.0, MAG_TOP_ROUND_Z)) + _off
+_pitch = _rot @ MUA.Vector((0.0, 0.0, -MAG_PITCH))
+AMMO = {
+    "round": "Round9x19",
+    "capacity": CAP,
+    # Патрон в патроннике: донце у зеркала затвора, ось совпадает с осью канала.
+    "chamber": [round(-bl + CART["round_len"] / 2, 3), 0.0, BORE_Z],
+    "chamber_pitch_deg": 0.0,
+    # Патроны стоят перпендикулярно стенкам магазина, то есть носом вниз на угол его наклона.
+    "stack_first": [round(v, 3) for v in _first],
+    "stack_pitch": [round(v, 3) for v in _pitch],
+    "stack_lateral": [0.0, round(MAG_STAGGER, 3), 0.0],
+    "round_pitch_deg": round(-MAG_TILT, 3),
+    "geometry": {"tilt_deg": round(MAG_TILT, 2), "pitch_mm": round(MAG_PITCH, 3),
+                 "stagger_mm": round(MAG_STAGGER, 3), "stack_height_mm": round(MAG_STACK_H, 1),
+                 "inner_mm": [round(MAG_IN_W, 2), round(MAG_IN_T, 2), round(MAG_H, 1)]},
+}
+_inside = MAG_H - MAG_LIP - 4.0
+_used = MAG_STACK_H + FOLLOWER_H + (spr_top - spr_bot)
+print(f"@@ --- магазин: наклон {MAG_TILT:.1f} град, шаг {MAG_PITCH:.2f} мм, смещение рядов {MAG_STAGGER:.1f} мм")
+print(f"@@ столб {CAP} патронов {MAG_STACK_H:.1f} + подаватель {FOLLOWER_H:.0f} + пружина {spr_top - spr_bot:.1f}"
+      f" = {_used:.1f} мм из {_inside:.1f} внутри  {'OK' if _used <= _inside else 'НЕ ВЛЕЗАЕТ'}")
 
 # --- Фаски по рёбрам и материалы ---
 MATS = {
@@ -255,11 +337,14 @@ MATS = {
     "Barrel":       L.material("Steel_Nitride", (0.085, 0.082, 0.080), 1.0, 0.26),
     "Frame":        L.material("Polymer", (0.030, 0.030, 0.032), 0.0, 0.62),      # полимер: не металл, матовый
     "Magazine":     L.material("Polymer_Mag", (0.035, 0.035, 0.038), 0.0, 0.55),
+    "MagFollower":  L.material("Polymer_Follower", (0.045, 0.045, 0.050), 0.0, 0.58),
+    "MagSpring":    L.material("Spring_Mag", (0.40, 0.40, 0.42), 1.0, 0.30),
     "RecoilSpring": L.material("Spring_Steel", (0.42, 0.42, 0.44), 1.0, 0.22),
 }
-BEVEL_W = {"Slide": 0.5, "Barrel": 0.4, "Frame": 0.6, "Magazine": 0.4, "RecoilSpring": 0.15}
+BEVEL_W = {"Slide": 0.5, "Barrel": 0.4, "Frame": 0.6, "Magazine": 0.4, "RecoilSpring": 0.15,
+           "MagFollower": 0.3, "MagSpring": 0.1}
 # Внутренние детали: сталь, кроме полимерных корпуса УСМ, спуска и защёлки магазина.
-POLYMER_PARTS = {"TriggerHousing", "Trigger", "MagCatch", "Magazine"}
+POLYMER_PARTS = {"TriggerHousing", "Trigger", "MagCatch", "Magazine", "MagFollower"}
 STEEL_BRIGHT = L.material("Steel_Bright", (0.36, 0.36, 0.38), 1.0, 0.24)
 for n, ob in parts.items():
     L.bevel(ob, width=BEVEL_W.get(n, 0.2), segments=2)
@@ -335,7 +420,10 @@ report["_fullstrip"] = [
     {"part": "Connector",        "group": "frame", "order": 13, "dir": [0, 1, 0],  "dist_mm": 40, "name": "Коннектор", "desc": "Коннектор расцепляет тягу с ударником в конце хода спуска и задаёт усилие спуска."},
     {"part": "Trigger",          "group": "frame", "order": 14, "dir": [0, 0, -1], "dist_mm": 70, "name": "Спусковой крючок с тягой", "desc": "Спусковой крючок с тягой снимает предохранители и спускает ударник."},
     {"part": "MagCatch",         "group": "frame", "order": 15, "dir": [0, 1, 0],  "dist_mm": 40, "name": "Защёлка магазина", "desc": "Защёлка магазина удерживает магазин в рукояти."},
+    {"part": "MagFollower",      "group": "mag",   "order": 16, "dir": [0, 0, -1], "dist_mm": 55, "name": "Подаватель", "desc": "Подаватель поднимает патроны к губкам магазина и держит двухрядную укладку."},
+    {"part": "MagSpring",        "group": "mag",   "order": 17, "dir": [0, 0, -1], "dist_mm": 75, "name": "Пружина магазина", "desc": "Пружина магазина прижимает подаватель вверх; при полном магазине она сжата почти в пакет."},
 ]
+report["_ammo"] = AMMO
 
 for ob in parts.values():
     ob.select_set(True)

@@ -113,6 +113,7 @@ void APBLPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &APBLPlayerController::BenchReset);
 		InputComponent->BindKey(EKeys::F, IE_Pressed, this, &APBLPlayerController::BenchFire);
 		InputComponent->BindKey(EKeys::G, IE_Pressed, this, &APBLPlayerController::BenchSlowMo);
+		InputComponent->BindKey(EKeys::C, IE_Pressed, this, &APBLPlayerController::BenchCutaway);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &APBLPlayerController::BenchDragStart);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &APBLPlayerController::BenchDragStop);
 	}
@@ -470,4 +471,17 @@ static FAutoConsoleCommandWithWorldAndArgs CmdBenchRotate(
 			B->AddRotation(Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.0f,
 			               Args.Num() > 1 ? FCString::Atof(*Args[1]) : 0.0f);
 		}
+	}));
+
+void APBLPlayerController::BenchCutaway()
+{
+	if (bBenchMode && Bench.IsValid()) { Bench->ToggleCutaway(); }
+}
+
+static FAutoConsoleCommandWithWorld CmdBenchCutaway(
+	TEXT("pbl.Bench.Cutaway"),
+	TEXT("Hide the outer shells so the mechanism and ammunition are visible"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W)
+	{
+		if (APBLPlayerController* PC = W ? Cast<APBLPlayerController>(W->GetFirstPlayerController()) : nullptr) { PC->BenchCutaway(); }
 	}));

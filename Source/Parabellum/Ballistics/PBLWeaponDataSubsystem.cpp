@@ -210,8 +210,28 @@ void UPBLWeaponDataSubsystem::Reload()
 		}
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references, %d body parts, %d part steps from %s"),
-		Cartridges.Num(), Firearms.Num(), Materials.Num(), References.Num(), BodyParts.Num(), PartSteps_.Num(), *Dir);
+	Rows.Reset();
+	if (ReadCsv(Dir / TEXT("AmmoLayout.csv"), Rows))
+	{
+		for (const auto& R : Rows)
+		{
+			FPBLAmmoLayout A;
+			A.Weapon = FName(*R.FindRef(TEXT("Weapon")));
+			A.Generation = FName(*R.FindRef(TEXT("Generation")));
+			A.RoundMesh = FName(*R.FindRef(TEXT("RoundMesh")));
+			A.Capacity = FCString::Atoi(*R.FindRef(TEXT("Capacity")));
+			A.Chamber_m = FVector(Num(R, TEXT("ChamberX_mm")), Num(R, TEXT("ChamberY_mm")), Num(R, TEXT("ChamberZ_mm"))) / 1000.0f;
+			A.ChamberPitch_deg = Num(R, TEXT("ChamberPitch_deg"));
+			A.StackFirst_m = FVector(Num(R, TEXT("StackX_mm")), Num(R, TEXT("StackY_mm")), Num(R, TEXT("StackZ_mm"))) / 1000.0f;
+			A.StackPitch_m = FVector(Num(R, TEXT("PitchX_mm")), Num(R, TEXT("PitchY_mm")), Num(R, TEXT("PitchZ_mm"))) / 1000.0f;
+			A.StackLateral_m = FVector(Num(R, TEXT("LatX_mm")), Num(R, TEXT("LatY_mm")), Num(R, TEXT("LatZ_mm"))) / 1000.0f;
+			A.RoundPitch_deg = Num(R, TEXT("RoundPitch_deg"));
+			if (!A.Weapon.IsNone()) { AmmoLayouts.Add(A.Weapon, A); }
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references, %d body parts, %d part steps, %d ammo layouts from %s"),
+		Cartridges.Num(), Firearms.Num(), Materials.Num(), References.Num(), BodyParts.Num(), PartSteps_.Num(), AmmoLayouts.Num(), *Dir);
 }
 
 static FAutoConsoleCommandWithWorld CmdDataReload(TEXT("pbl.Data.Reload"), TEXT("Reload Content/Data/*.csv"),
