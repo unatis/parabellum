@@ -32,7 +32,7 @@ CEIL_T = 30           # толщина перекрытия
 BEAM_H, BEAM_W = 50, 60
 BEAM_STEP = 500       # шаг балок в зале
 COL_W = 60            # сечение колонны
-LAMP_LUMENS = 6000    # светильник ~ промышленный светодиодный, 4000 лм
+LAMP_LUMENS = 9000    # светильник ~ промышленный светодиодный, 4000 лм
 LAMP_STEP = 700       # шаг светильников в зале
 LANE_LAMP_STEP = 2000 # шаг светильников в тире
 
@@ -118,7 +118,7 @@ PLAYER_STARTS = [(-1700, -1700, 100, 45), (1700, 1700, 100, -135), (-1700, 1700,
 
 # Ð¡Ð²ÐµÑ‚ Ð¸ ÑÐºÑÐ¿Ð¾Ð·Ð¸Ñ†Ð¸Ñ. Ð­ÐºÑÐ¿Ð¾Ð·Ð¸Ñ†Ð¸Ñ Ñ„Ð¸ÐºÑÐ¸Ñ€Ð¾Ð²Ð°Ð½Ð° (ÑÐ¿ÐµÐºÐ° Ð·Ñ€ÐµÐ½Ð¸Ñ: Ð°Ð²Ñ‚Ð¾-ÑÐºÑÐ¿Ð¾Ð·Ð¸Ñ†Ð¸Ñ Ð´Ð°ÑÑ‚ ÑˆÐ²Ñ‹ Ð½Ð° Ð­6).
 SKY_FILL = 0.25   # Ð½ÐµÐ±Ð¾ ÑÑ€Ñ‡Ðµ: Ñ‚ÐµÐ½Ð¸ Ð½Ðµ Ñ‡Ñ‘Ñ€Ð½Ñ‹Ðµ (Ñ€ÐµÐ°Ð»ÑŒÐ½Ð¾Ðµ Ð¾Ñ‚Ð½Ð¾ÑˆÐµÐ½Ð¸Ðµ ÑÐ¾Ð»Ð½Ñ†Ðµ/Ñ‚ÐµÐ½ÑŒ ~5-10:1; Ð´Ð»Ñ Ð¿Ð¾Ð»Ð¸Ð³Ð¾Ð½Ð° Ð½ÑƒÐ¶Ð½Ð° Ñ€Ð¾Ð²Ð½Ð°Ñ Ð¾ÑÐ²ÐµÑ‰Ñ‘Ð½Ð½Ð¾ÑÑ‚ÑŒ)
-EXPOSURE_BIAS = 3.5   # Ñ€ÑƒÑ‡Ð½Ð°Ñ ÐºÐ°Ð¼ÐµÑ€Ð° f/4 1/60 ISO100 = EV~10; ÑÐ¾Ð»Ð½Ñ†Ðµ 10 lux Ð´Ð°Ñ‘Ñ‚ EV~4 -> ÐºÐ¾Ð¼Ð¿ÐµÐ½ÑÐ¸Ñ€ÑƒÐµÐ¼
+EXPOSURE_BIAS = 5.2   # Ñ€ÑƒÑ‡Ð½Ð°Ñ ÐºÐ°Ð¼ÐµÑ€Ð° f/4 1/60 ISO100 = EV~10; ÑÐ¾Ð»Ð½Ñ†Ðµ 10 lux Ð´Ð°Ñ‘Ñ‚ EV~4 -> ÐºÐ¾Ð¼Ð¿ÐµÐ½ÑÐ¸Ñ€ÑƒÐµÐ¼
 
 # ---------------------------------------------------------------------------
 
@@ -295,12 +295,15 @@ def main():
     # откатываемся на простые материалы: уровень должен собираться и без текстур.
     floor_mat = eal.load_asset("/Game/Surfaces/MI_Concrete_FloorLines") or make_floor_material()
     concrete = eal.load_asset("/Game/Surfaces/MI_Concrete_Wall") or         make_simple_material("M_Concrete", (0.200, 0.195, 0.185), 0.92)
+    ceiling_mat = eal.load_asset("/Game/Surfaces/MI_Concrete_Ceiling") or concrete
     for label, center, size, rot in LAYOUT:
         a = spawn(unreal.StaticMeshActor, center, rot, label, "Geometry")
         a.static_mesh_component.set_static_mesh(cube)
         a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
         if label in ("Floor", "Lane_Floor") and floor_mat:
             a.static_mesh_component.set_material(0, floor_mat)
+        elif label.startswith(("Ceiling", "Lane_Ceiling", "Beam_", "Lane_Beam_")) and ceiling_mat:
+            a.static_mesh_component.set_material(0, ceiling_mat)
         elif concrete:
             a.static_mesh_component.set_material(0, concrete)
     log(f"geometry: {len(LAYOUT)} boxes")
@@ -410,7 +413,7 @@ def main():
         uc = up.get_component_by_class(unreal.RectLightComponent)
         uc.set_mobility(unreal.ComponentMobility.MOVABLE)
         uc.set_editor_property("intensity_units", unreal.LightUnits.LUMENS)
-        uc.set_intensity(LAMP_LUMENS * 0.3)
+        uc.set_intensity(LAMP_LUMENS * 0.45)
         uc.set_editor_property("source_width", width)
         uc.set_editor_property("source_height", 18.0)
         uc.set_attenuation_radius(700.0)

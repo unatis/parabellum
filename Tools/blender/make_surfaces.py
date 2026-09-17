@@ -5,7 +5,8 @@
 
 Каждая поверхность даёт три карты:
   <name>_BC.png   - базовый цвет (sRGB)
-  <name>_MSK.png  - R шероховатость, G затенение полостей, B запас (линейная)
+  <name>_R.png    - шероховатость (линейная)
+  <name>_AO.png   - затенение полостей (линейная)
   <name>_N.png    - нормаль из карты высот (линейная)
 
 Это заглушка до фотограмметрии (Megascans): мастер-материал один и тот же, карты подменяются.
@@ -77,11 +78,12 @@ def to_srgb(lin):
 
 def save(name, albedo_lin, rough, ao, height, normal_strength):
     bc = (to_srgb(albedo_lin) * 255 + 0.5).astype(np.uint8)
-    msk = np.stack([rough, ao, np.zeros_like(rough)], axis=-1)
-    msk = (np.clip(msk, 0, 1) * 255 + 0.5).astype(np.uint8)
+    r8 = (np.clip(rough, 0, 1) * 255 + 0.5).astype(np.uint8)
+    a8 = (np.clip(ao, 0, 1) * 255 + 0.5).astype(np.uint8)
     nrm = (normal_from_height(height, normal_strength) * 255 + 0.5).astype(np.uint8)
     write_png(os.path.join(OUT, f"{name}_BC.png"), bc)
-    write_png(os.path.join(OUT, f"{name}_MSK.png"), msk)
+    write_png(os.path.join(OUT, f"{name}_R.png"), rgb(r8.astype(float) / 255.0 * 255).astype(np.uint8))
+    write_png(os.path.join(OUT, f"{name}_AO.png"), rgb(a8.astype(float) / 255.0 * 255).astype(np.uint8))
     write_png(os.path.join(OUT, f"{name}_N.png"), nrm)
     print(f"@@ {name:16s} albedo {albedo_lin.mean():.3f}  rough {rough.mean():.2f}  {RES}x{RES}, тайл {TILE_M} м")
 

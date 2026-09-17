@@ -1,11 +1,14 @@
 """
-Импорт карт поверхностей (Import/Surfaces/*.png) в /Game/Surfaces и сборка мастер-материала.
+Импорт карт поверхностей (Import/Surfaces) в /Game/Surfaces и сборка мастер-материала.
 
 Материал трипланарный: уровень собран из растянутых кубов, и обычные UV дали бы на каждой грани
-свою плотность текселей. Здесь координаты берутся из мировой позиции, а три проекции смешиваются
-по нормали, поэтому масштаб текстуры одинаков на полу, стене и торце - независимо от масштаба актора.
+свою плотность текселей. Координаты берутся из мировой позиции, три проекции смешиваются по
+нормали - масштаб текстуры одинаков на полу, стене и торце независимо от масштаба актора.
+Нормали тоже смешиваются трипланарно, поэтому материал работает в МИРОВЫХ нормалях
+(tangent_space_normal = False) - иначе рельеф разъехался бы по граням.
 
-Карты Megascans кладутся сюда же под теми же именами - материал менять не нужно.
+Карты ждутся как <Surface>_BC / _R / _AO / _N, .jpg или .png. Megascans раскладывает
+Tools/megascans_prepare.py; если их нет, берутся процедурные из Tools/blender/make_surfaces.py.
 Запуск: Tools/import_surfaces.bat. Идемпотентен.
 """
 import os
@@ -18,13 +21,15 @@ eal = unreal.EditorAssetLibrary
 mel = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 
-SURFACES = ["Concrete_Wall", "Concrete_Floor", "Steel_Painted"]
-# Масштаб тайла в сантиметрах мира: карты сделаны на 2 м.
+# Поверхности и то, наносится ли на них разметка дистанций.
+SURFACES = [("Concrete_Wall", False), ("Concrete_Floor", True), ("Concrete_Ceiling", False),
+            ("Steel_Painted", False)]
+# Карты Megascans сняты с площадки 2x2 м - тайл в сантиметрах мира ровно такой же.
 TILE_CM = 200.0
 
 TRIPLANAR = """
-// Трипланарная проекция: три развёртки по мировым осям, смешанные по нормали.
-// Степень 6 у весов делает переход узким, иначе на скосах видно «размазанный» шов.
+// Три развёртки по мировым осям, смешанные по нормали. Степень 6 делает переход узким,
+// иначе на скосах видно размазанный шов.
 float3 p = WorldPos / max(TileSize, 1.0f);
 float3 w = pow(abs(WorldNormal), 6.0f);
 w /= max(w.x + w.y + w.z, 1e-4f);
@@ -34,10 +39,31 @@ float3 cz = Texture2DSample(Tex, TexSampler, p.xy).rgb;
 return cx * w.x + cy * w.y + cz * w.z;
 """
 
+TRIPLANAR_N = """
+// Трипланарные нормали: каждая проекция распаковывается и разворачивается в мир по своей оси,
+// знак берётся от нормали грани. Результат - нормаль В МИРОВЫХ координатах.
+float3 p = WorldPos / max(TileSize, 1.0f);
+float3 wn = WorldNormal;
+float3 w = pow(abs(wn), 6.0f);
+w /= max(w.x + w.y + w.z, 1e-4f);
+float3 sgn = sign(wn);
+// Карта нормалей лежит в двух каналах (BC5): синий в текстуре не хранится и восстанавливается
+// здесь. Если брать .b как есть, получается -1 - нормали разворачиваются внутрь и всё чернеет.
+float2 rx = Texture2DSample(Tex, TexSampler, p.yz).rg * 2.0f - 1.0f;
+float2 ry = Texture2DSample(Tex, TexSampler, p.xz).rg * 2.0f - 1.0f;
+float2 rz = Texture2DSample(Tex, TexSampler, p.xy).rg * 2.0f - 1.0f;
+float3 tx = float3(rx, sqrt(saturate(1.0f - dot(rx, rx))));
+float3 ty = float3(ry, sqrt(saturate(1.0f - dot(ry, ry))));
+float3 tz = float3(rz, sqrt(saturate(1.0f - dot(rz, rz))));
+float3 nx = float3(tx.z * sgn.x, tx.x, tx.y);
+float3 ny = float3(ty.x, ty.z * sgn.y, ty.y);
+float3 nz = float3(tz.x, tz.y, tz.z * sgn.z);
+return normalize(nx * w.x + ny * w.y + nz * w.z);
+"""
 
 LINES = """
-// Разметка дистанций: белая краска по бетону, ширина задана в МИРОВЫХ единицах, поэтому
-// в перспективе линии сужаются, как настоящие, а не расползаются в полосы.
+// Разметка дистанций: краска по бетону. Ширина в МИРОВЫХ единицах, поэтому вдали линии
+// сужаются как настоящие, а не расползаются в полосы.
 float2 q  = WorldPos.xy / 100.0f;
 float2 fw = max(fwidth(q), 1e-5f);
 float  w1 = 0.010f;
@@ -57,10 +83,16 @@ def log(m):
     unreal.log(f"[surfaces] {m}")
 
 
-def import_texture(name, srgb, compression):
-    path = os.path.join(SRC, name + ".png")
-    if not os.path.exists(path):
-        raise RuntimeError(f"нет файла {path}")
+def find_map(surface, role):
+    for ext in (".jpg", ".png"):
+        p = os.path.join(SRC, f"{surface}_{role}{ext}")
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def import_texture(path, srgb, compression):
+    name = os.path.splitext(os.path.basename(path))[0]
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", path)
     task.set_editor_property("destination_path", DEST)
@@ -78,86 +110,89 @@ def import_texture(name, srgb, compression):
     return tex
 
 
-def triplanar_node(mat, x, y, tex_param_name, world_pos, world_normal, tile):
-    """Custom-нода с трипланарной выборкой; текстура приходит параметром, чтобы менять её в инстансах."""
+def triplanar(mat, x, y, param, code, out_type, wp, wn, tile):
     node = mel.create_material_expression(mat, unreal.MaterialExpressionCustom, x, y)
-    node.set_editor_property("code", TRIPLANAR)
-    node.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+    node.set_editor_property("code", code)
+    node.set_editor_property("output_type", out_type)
     ins = []
     for n in ("WorldPos", "WorldNormal", "TileSize", "Tex"):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
     node.set_editor_property("inputs", ins)
-
-    tex = mel.create_material_expression(mat, unreal.MaterialExpressionTextureObjectParameter, x - 400, y + 200)
-    tex.set_editor_property("parameter_name", tex_param_name)
-    for src, dst in ((world_pos, "WorldPos"), (world_normal, "WorldNormal"), (tile, "TileSize"), (tex, "Tex")):
+    tex = mel.create_material_expression(mat, unreal.MaterialExpressionTextureObjectParameter, x - 400, y + 150)
+    tex.set_editor_property("parameter_name", param)
+    for src, dst in ((wp, "WorldPos"), (wn, "WorldNormal"), (tile, "TileSize"), (tex, "Tex")):
         if not mel.connect_material_expressions(src, "", node, dst):
-            raise RuntimeError(f"не соединилось: {dst}")
-    return node, tex
+            raise RuntimeError(f"не соединилось: {param}/{dst}")
+    return node
+
+
+def red(mat, node, x, y):
+    m = mel.create_material_expression(mat, unreal.MaterialExpressionComponentMask, x, y)
+    m.set_editor_property("r", True)
+    m.set_editor_property("g", False)
+    m.set_editor_property("b", False)
+    mel.connect_material_expressions(node, "", m, "")
+    return m
 
 
 def make_master():
-    name, path = "M_Surface", "/Game/Surfaces"
+    name, path = "M_Surface", DEST
     full = f"{path}/{name}"
     if eal.does_asset_exist(full):
         mat = eal.load_asset(full)
         mel.delete_all_material_expressions(mat)
     else:
         mat = tools.create_asset(name, path, unreal.Material, unreal.MaterialFactoryNew())
+    # Нормали приходят из трипланарного смешения уже в мировых координатах.
+    mat.set_editor_property("tangent_space_normal", False)
 
-    wp = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1200, 0)
-    wn = mel.create_material_expression(mat, unreal.MaterialExpressionVertexNormalWS, -1200, 200)
-    tile = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1200, 400)
+    wp = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1400, 0)
+    wn = mel.create_material_expression(mat, unreal.MaterialExpressionVertexNormalWS, -1400, 150)
+    tile = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1400, 300)
     tile.set_editor_property("parameter_name", "TileSize")
     tile.set_editor_property("default_value", TILE_CM)
 
-    bc, _ = triplanar_node(mat, -500, -200, "BaseColorMap", wp, wn, tile)
-
-    msk, _ = triplanar_node(mat, -500, 400, "MaskMap", wp, wn, tile)
-    rough = mel.create_material_expression(mat, unreal.MaterialExpressionComponentMask, -200, 400)
-    rough.set_editor_property("r", True)
-    rough.set_editor_property("g", False)
-    rough.set_editor_property("b", False)
-    mel.connect_material_expressions(msk, "", rough, "")
-
-    ao = mel.create_material_expression(mat, unreal.MaterialExpressionComponentMask, -200, 600)
-    ao.set_editor_property("r", False)
-    ao.set_editor_property("g", True)
-    ao.set_editor_property("b", False)
-    mel.connect_material_expressions(msk, "", ao, "")
-    mel.connect_material_property(ao, "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+    F3 = unreal.CustomMaterialOutputType.CMOT_FLOAT3
+    bc = triplanar(mat, -700, -300, "BaseColorMap", TRIPLANAR, F3, wp, wn, tile)
+    rg = triplanar(mat, -700, 100, "RoughnessMap", TRIPLANAR, F3, wp, wn, tile)
+    ao = triplanar(mat, -700, 450, "AOMap", TRIPLANAR, F3, wp, wn, tile)
+    nm = triplanar(mat, -700, 800, "NormalMap", TRIPLANAR_N, F3, wp, wn, tile)
+    # PBL_NO_NORMAL=1 - собрать материал без рельефа: так проверяется, что тёмная картинка
+    # идёт от нормалей, а не от альбедо сканов.
+    if os.environ.get("PBL_NO_NORMAL") != "1":
+        mel.connect_material_property(nm, "", unreal.MaterialProperty.MP_NORMAL)
+    mel.connect_material_property(red(mat, ao, -350, 450), "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+    rough = red(mat, rg, -350, 100)
 
     # Разметка поверх бетона: включается параметром, поэтому пол и стены - один материал.
-    lines = mel.create_material_expression(mat, unreal.MaterialExpressionCustom, -800, 900)
+    lines = mel.create_material_expression(mat, unreal.MaterialExpressionCustom, -1000, 1200)
     lines.set_editor_property("code", LINES)
     lines.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
     ci = unreal.CustomInput()
     ci.set_editor_property("input_name", "WorldPos")
     lines.set_editor_property("inputs", [ci])
     mel.connect_material_expressions(wp, "", lines, "WorldPos")
-
-    strength = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -800, 1100)
+    strength = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1000, 1400)
     strength.set_editor_property("parameter_name", "LineStrength")
     strength.set_editor_property("default_value", 0.0)
-    alpha = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -500, 1000)
+    alpha = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -700, 1300)
     mel.connect_material_expressions(lines, "", alpha, "A")
     mel.connect_material_expressions(strength, "", alpha, "B")
-
-    paint = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -500, 1200)
+    paint = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -700, 1500)
     paint.set_editor_property("parameter_name", "LineColor")
-    paint.set_editor_property("default_value", unreal.LinearColor(0.32, 0.32, 0.31, 1.0))
+    paint.set_editor_property("default_value", unreal.LinearColor(0.34, 0.34, 0.33, 1.0))
 
-    bc_mix = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -200, 0)
+    bc_mix = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -350, -300)
     mel.connect_material_expressions(bc, "", bc_mix, "A")
     mel.connect_material_expressions(paint, "", bc_mix, "B")
     mel.connect_material_expressions(alpha, "", bc_mix, "Alpha")
     mel.connect_material_property(bc_mix, "", unreal.MaterialProperty.MP_BASE_COLOR)
 
-    paint_r = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -200, 300)
+    paint_r = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -350, 250)
     paint_r.set_editor_property("r", 0.55)
-    r_mix = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, 0, 400)
+    r_mix = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -100, 150)
     mel.connect_material_expressions(rough, "", r_mix, "A")
     mel.connect_material_expressions(paint_r, "", r_mix, "B")
     mel.connect_material_expressions(alpha, "", r_mix, "Alpha")
@@ -165,33 +200,38 @@ def make_master():
 
     mel.recompile_material(mat)
     eal.save_loaded_asset(mat)
-    log(f"master {full}")
+    log(f"master {full} (мировые нормали, тайл {TILE_CM:.0f} см)")
     return mat
 
 
-def make_instance(master, surface, bc_tex, msk_tex, lines=False, name=None):
-    name = name or f"MI_{surface}"
+TC = unreal.TextureCompressionSettings
+ROLES = [("BC", True, TC.TC_DEFAULT, "BaseColorMap"),
+         ("R", False, TC.TC_MASKS, "RoughnessMap"),
+         ("AO", False, TC.TC_MASKS, "AOMap"),
+         ("N", False, TC.TC_NORMALMAP, "NormalMap")]
+
+master = make_master()
+for surface, lines in SURFACES:
+    params = {}
+    for role, srgb, comp, param in ROLES:
+        p = find_map(surface, role)
+        if not p:
+            log(f"{surface}: нет карты {role} - пропуск поверхности")
+            params = None
+            break
+        params[param] = import_texture(p, srgb, comp)
+    if not params:
+        continue
+    name = f"MI_{surface}"
     full = f"{DEST}/{name}"
     if eal.does_asset_exist(full):
         eal.delete_asset(full)
     mi = tools.create_asset(name, DEST, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
     mel.set_material_instance_parent(mi, master)
-    mel.set_material_instance_texture_parameter_value(mi, "BaseColorMap", bc_tex)
-    mel.set_material_instance_texture_parameter_value(mi, "MaskMap", msk_tex)
+    for param, tex in params.items():
+        mel.set_material_instance_texture_parameter_value(mi, param, tex)
     if lines:
         mel.set_material_instance_scalar_parameter_value(mi, "LineStrength", 1.0)
     eal.save_loaded_asset(mi)
-    log(f"instance {full}")
-    return mi
-
-
-master = make_master()
-for s in SURFACES:
-    bc = import_texture(f"{s}_BC", True, unreal.TextureCompressionSettings.TC_DEFAULT)
-    msk = import_texture(f"{s}_MSK", False, unreal.TextureCompressionSettings.TC_MASKS)
-    import_texture(f"{s}_N", False, unreal.TextureCompressionSettings.TC_NORMALMAP)
-    make_instance(master, s, bc, msk)
-    if s == "Concrete_Floor":
-        # Пол тира и зала: тот же бетон, но с нанесённой разметкой дистанций.
-        make_instance(master, s, bc, msk, lines=True, name="MI_Concrete_FloorLines")
+    log(f"instance {full}{' + разметка' if lines else ''}")
 log("DONE")

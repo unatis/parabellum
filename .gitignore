@@ -31,3 +31,10 @@ Import/
 
 # Локальные исходники и вспомогательное (не в репозитории):
 # Import/ - скачанные FBX/архивы/звуки (лицензии смотреть на страницах источников)
+
+# Megascans с Fab: Standard License не разрешает распространение исходных файлов,
+# поэтому архивы и производные текстуры в репозиторий не кладём. Скрипты остаются:
+# Tools/megascans_prepare.py разложит архивы заново после скачивания с Fab.
+Import/Surfaces/megascans/
+Import/Surfaces/Concrete_*.jpg
+Content/Surfaces/Concrete_*.uasset
