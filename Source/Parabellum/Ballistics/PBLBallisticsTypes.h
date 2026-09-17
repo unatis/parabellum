@@ -135,6 +135,8 @@ struct FPBLWeaponPartStep
 	/** Направление съёма в координатах сборки и расстояние отвода, см. */
 	UPROPERTY() FVector Dir = FVector::ZeroVector;
 	UPROPERTY() float Dist_cm = 0.0f;
+	/** Назначение детали - показывается при наведении. */
+	UPROPERTY() FString Description;
 };
 
 /** Эталонная строка (Content/Data/Reference_Gel.csv) для автосверки pbl.Ballistics.GelCheck. */

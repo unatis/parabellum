@@ -296,11 +296,25 @@ void APBLPlayerController::BenchDragStart()
 {
 	if (!bBenchMode) { return; }
 	bDragging = true;
+	DragDistance = 0.0f;
 	float X, Y;
 	if (GetMousePosition(X, Y)) { LastMouse = FVector2D(X, Y); }
 }
 
-void APBLPlayerController::BenchDragStop() { bDragging = false; }
+void APBLPlayerController::BenchDragStop()
+{
+	// Потянули - вращали образец; кликнули без движения - снимаем деталь под курсором.
+	if (bBenchMode && bDragging && DragDistance < 6.0f && Bench.IsValid())
+	{
+		const FName Part = Bench->GetHovered();
+		FString Reason;
+		if (!Part.IsNone() && !Bench->TryTakePart(Part, Reason))
+		{
+			UE_LOG(LogTemp, Display, TEXT("PBL Bench: %s - %s"), *Bench->GetHoveredName(), *Reason);
+		}
+	}
+	bDragging = false;
+}
 
 void APBLPlayerController::BenchNext()
 {
@@ -350,13 +364,22 @@ void APBLPlayerController::PlayerTick(float DeltaTime)
 	if (!bBenchMode) { return; }
 	// Камера плавно подстраивается: при разборке детали расходятся, кадр расширяется.
 	UpdateBenchCamera(FMath::Clamp(DeltaTime * 3.0f, 0.0f, 1.0f));
-	if (!bDragging || !Bench.IsValid()) { return; }
+	if (!Bench.IsValid()) { return; }
+
+	// Наведение курсором: подсвечиваем деталь под ним.
+	FVector WorldPos, WorldDir;
+	if (DeprojectMousePositionToWorld(WorldPos, WorldDir))
+	{
+		Bench->TraceHover(WorldPos, WorldPos + WorldDir * 100000.0f);
+	}
+	if (!bDragging) { return; }
 	float X, Y;
 	if (!GetMousePosition(X, Y)) { return; }
 	const FVector2D Now(X, Y);
 	const FVector2D D = Now - LastMouse;
 	LastMouse = Now;
 	// Тянем мышью - образец поворачивается за ней.
+	DragDistance += D.Size();
 	Bench->AddRotation(-D.X * 0.4f, D.Y * 0.4f);
 }
 
@@ -371,3 +394,22 @@ static FAutoConsoleCommandWithWorld CmdBenchPrev(TEXT("pbl.Bench.Prev"), TEXT("P
 	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W) { BenchCmd(W, &APBLPlayerController::BenchPrev); }));
 static FAutoConsoleCommandWithWorld CmdBenchStage(TEXT("pbl.Bench.Stage"), TEXT("Toggle field/full strip"),
 	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W) { BenchCmd(W, &APBLPlayerController::BenchStage); }));
+
+// Проверка наведения без мыши: луч из камеры в центр названной детали.
+static FAutoConsoleCommandWithWorldAndArgs CmdBenchHover(TEXT("pbl.Bench.Hover"),
+	TEXT("Hover (and try to take) a part by name: pbl.Bench.Hover Slide"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		APBLPlayerController* PC = World ? Cast<APBLPlayerController>(World->GetFirstPlayerController()) : nullptr;
+		APBLWeaponBench* B = PC ? PC->GetBench() : nullptr;
+		if (!PC || !B || Args.Num() < 1) { return; }
+		FVector Target;
+		if (!B->GetPartCenter(FName(*Args[0]), Target)) { UE_LOG(LogTemp, Warning, TEXT("PBL Bench: нет детали %s"), *Args[0]); return; }
+		FVector Loc; FRotator Rot;
+		PC->GetPlayerViewPoint(Loc, Rot);
+		const FVector Dir = (Target - Loc).GetSafeNormal();
+		const FName P = B->TraceHover(Loc, Loc + Dir * 100000.0f);
+		UE_LOG(LogTemp, Display, TEXT("PBL Bench hover: [%s] %s"), *B->GetHoveredName(), *B->GetHoveredDescription());
+		FString Reason;
+		if (!P.IsNone()) { B->TryTakePart(P, Reason); UE_LOG(LogTemp, Display, TEXT("PBL Bench take: %s"), *B->GetMessage()); }
+	}));

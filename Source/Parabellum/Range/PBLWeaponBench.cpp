@@ -40,7 +40,10 @@ void APBLWeaponBench::BuildParts()
 		if (!SM) { UE_LOG(LogTemp, Warning, TEXT("PBL Bench: нет меша детали %s"), *Part.ToString()); continue; }
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
 		C->SetStaticMesh(SM);
-		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		// Коллизия только для наведения курсором: стрелять по стенду не нужно.
+		C->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		C->SetCollisionResponseToAllChannels(ECR_Ignore);
+		C->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 		C->RegisterComponent();
 		C->AttachToComponent(Pivot, FAttachmentTransformRules::KeepRelativeTransform);
 		C->SetRelativeLocation(FVector::ZeroVector);   // геометрия деталей уже в координатах сборки
@@ -144,4 +147,78 @@ void APBLWeaponBench::GetViewFocus(FVector& OutCenter, float& OutRadius) const
 	if (!Box.IsValid) { OutCenter = GetActorLocation(); OutRadius = 30.0f; return; }
 	OutCenter = Box.GetCenter();
 	OutRadius = FMath::Max(Box.GetExtent().Size(), 10.0f);
+}
+
+const FPBLWeaponPartStep* APBLWeaponBench::FindStep(FName Part) const
+{
+	for (const FPBLWeaponPartStep& P : Steps) { if (P.Part == Part) { return &P; } }
+	return nullptr;
+}
+
+FName APBLWeaponBench::TraceHover(const FVector& Start, const FVector& End)
+{
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PBLBenchHover), true);
+	FName NewHover = NAME_None;
+	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) && Hit.GetActor() == this)
+	{
+		for (const auto& It : PartComps) { if (It.Value == Hit.GetComponent()) { NewHover = It.Key; break; } }
+	}
+	if (NewHover != Hovered)
+	{
+		UMaterialInterface* HL = HighlightMaterial.LoadSynchronous();
+		if (TObjectPtr<UStaticMeshComponent>* Old = PartComps.Find(Hovered)) { if (*Old) { (*Old)->SetOverlayMaterial(nullptr); } }
+		if (TObjectPtr<UStaticMeshComponent>* New = PartComps.Find(NewHover)) { if (*New && HL) { (*New)->SetOverlayMaterial(HL); } }
+		Hovered = NewHover;
+	}
+	return Hovered;
+}
+
+bool APBLWeaponBench::TryTakePart(FName Part, FString& OutReason)
+{
+	const FPBLWeaponPartStep* P = FindStep(Part);
+	if (!P)
+	{
+		OutReason = FString::Printf(TEXT("%s не снимается на этой стадии"), *Part.ToString());
+		Message = OutReason;
+		return false;
+	}
+	if (P->Order <= Step)
+	{
+		OutReason = TEXT("деталь уже снята");
+		Message = OutReason;
+		return false;
+	}
+	if (P->Order > Step + 1)
+	{
+		// Порядок разборки и есть описание того, что чем удерживается.
+		const FString Blocking = Steps.IsValidIndex(Step) ? Steps[Step].DisplayName : FString(TEXT("другая деталь"));
+		OutReason = FString::Printf(TEXT("держит: %s - снимите сначала её"), *Blocking);
+		Message = OutReason;
+		return false;
+	}
+	StepForward();
+	Message = FString::Printf(TEXT("снято: %s"), *P->DisplayName);
+	return true;
+}
+
+FString APBLWeaponBench::GetHoveredName() const
+{
+	if (const FPBLWeaponPartStep* P = FindStep(Hovered)) { return P->DisplayName; }
+	return Hovered.IsNone() ? FString() : Hovered.ToString();
+}
+
+FString APBLWeaponBench::GetHoveredDescription() const
+{
+	const FPBLWeaponPartStep* P = FindStep(Hovered);
+	return P ? P->Description : FString();
+}
+
+bool APBLWeaponBench::GetPartCenter(FName Part, FVector& Out) const
+{
+	if (const TObjectPtr<UStaticMeshComponent>* C = PartComps.Find(Part))
+	{
+		if (*C) { Out = (*C)->Bounds.Origin; return true; }
+	}
+	return false;
 }

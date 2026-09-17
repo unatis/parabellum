@@ -22,8 +22,18 @@ void APBLHUD::DrawHUD()
 			if (const APBLWeaponBench* B = PC->GetBench())
 			{
 				DrawText(B->GetStatusLine(), FLinearColor(1.0f, 0.95f, 0.8f, 0.95f), 30.0f, 30.0f, GEngine->GetLargeFont(), 1.3f);
-				DrawText(TEXT("ЛКМ - вращать, E / колесо - разобрать, Q - собрать, T - полная разборка, R - сброс, F3 - выход"),
+				DrawText(TEXT("ЛКМ тянуть - вращать, ЛКМ клик по детали - снять, E / колесо - разобрать, Q - собрать, T - полная разборка, R - сброс, F3 - выход"),
 					FLinearColor(0.8f, 0.8f, 0.8f, 0.8f), 30.0f, 58.0f, GEngine->GetLargeFont(), 1.0f);
+				const FString Hover = B->GetHoveredName();
+				if (!Hover.IsEmpty())
+				{
+					DrawText(Hover, FLinearColor(1.0f, 0.65f, 0.2f, 1.0f), 30.0f, Canvas->ClipY - 96.0f, GEngine->GetLargeFont(), 1.4f);
+					DrawText(B->GetHoveredDescription(), FLinearColor(0.9f, 0.9f, 0.9f, 0.9f), 30.0f, Canvas->ClipY - 68.0f, GEngine->GetLargeFont(), 1.0f);
+				}
+				if (!B->GetMessage().IsEmpty())
+				{
+					DrawText(B->GetMessage(), FLinearColor(1.0f, 0.85f, 0.4f, 0.95f), 30.0f, Canvas->ClipY - 40.0f, GEngine->GetLargeFont(), 1.1f);
+				}
 			}
 			return;
 		}

@@ -190,6 +190,7 @@ void UPBLWeaponDataSubsystem::Reload()
 			P.Order = FCString::Atoi(*R.FindRef(TEXT("Order")));
 			P.Dir = FVector(Num(R, TEXT("DirX")), Num(R, TEXT("DirY")), Num(R, TEXT("DirZ")));
 			P.Dist_cm = Num(R, TEXT("Dist_cm"));
+			P.Description = R.FindRef(TEXT("Description"));
 			if (!P.Part.IsNone()) { PartSteps_.Add(P); }
 		}
 	}

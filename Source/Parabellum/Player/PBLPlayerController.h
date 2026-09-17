@@ -65,6 +65,7 @@ private:
 	bool bBenchMode = false;
 	FVector2D LastMouse = FVector2D::ZeroVector;
 	bool bDragging = false;
+	float DragDistance = 0.0f;
 	void BenchDragStart();
 	void BenchDragStop();
 	FTimerHandle ScreenshotHandle;

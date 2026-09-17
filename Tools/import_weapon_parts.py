@@ -51,6 +51,11 @@ for p in list(task.get_editor_property("imported_object_paths")):
     a = eal.load_asset(p)
     if isinstance(a, unreal.StaticMesh):
         b = a.get_bounds()
+        # Коллизия по геометрии: нужна, чтобы наводить курсор на деталь в оружейной комнате.
+        bs = a.get_editor_property("body_setup")
+        if bs:
+            bs.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+            eal.save_loaded_asset(a)
         imported[a.get_name()] = a
         log(f"{a.get_name():18s} {2*b.box_extent.x:6.1f} x {2*b.box_extent.y:5.1f} x {2*b.box_extent.z:6.1f} cm")
 log(f"imported {len(imported)} parts")
@@ -58,12 +63,12 @@ log(f"imported {len(imported)} parts")
 # --- Данные разборки в CSV проекта ---
 with open(meta_path, encoding="utf-8") as f:
     meta = json.load(f)
-rows = ["Weapon,Generation,Part,DisplayName,Stage,Group,Order,DirX,DirY,DirZ,Dist_cm"]
+rows = ["Weapon,Generation,Part,DisplayName,Stage,Group,Order,DirX,DirY,DirZ,Dist_cm,Description"]
 for stage, key in (("Field", "_fieldstrip"), ("Full", "_fullstrip")):
     for it in meta["parts"].get(key, []):
         d = it["dir"]
         rows.append(f'{WEAPON},{GEN},{it["part"]},"{it["name"]}",{stage},{it.get("group","")},'
-                    f'{it["order"]},{d[0]},{d[1]},{d[2]},{it["dist_mm"] / 10.0:.1f}')
+                    f'{it["order"]},{d[0]},{d[1]},{d[2]},{it["dist_mm"] / 10.0:.1f},"{it.get("desc", "")}"')
 out_csv = os.path.join(ROOT, "Content", "Data", "WeaponParts.csv")
 with open(out_csv, "w", encoding="utf-8", newline="\n") as f:
     f.write("\n".join(rows) + "\n")

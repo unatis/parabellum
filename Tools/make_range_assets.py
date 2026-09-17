@@ -84,4 +84,19 @@ make_panel("M_PanelDrywall", (0.85, 0.85, 0.82), 0.9)
 make_panel("M_PanelPlywood", (0.65, 0.48, 0.28), 0.7)
 make_panel("M_PanelPine", (0.78, 0.62, 0.38), 0.75)
 make_panel("M_PanelSteel", (0.45, 0.46, 0.48), 0.35, 1.0)
+
+
+def make_highlight():
+    """Подсветка детали в оружейной комнате: unlit-накладка поверх меша."""
+    mat, full = get_or_create("M_PartHighlight")
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    mel.connect_material_property(const3(mat, (1.0, 0.55, 0.12), -400, 0), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.connect_material_property(const1(mat, 0.28, -400, 150), "", unreal.MaterialProperty.MP_OPACITY)
+    mel.recompile_material(mat)
+    eal.save_loaded_asset(mat)
+    log(f"saved {full}")
+
+
+make_highlight()
 log("done")

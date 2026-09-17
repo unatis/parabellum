@@ -34,6 +34,16 @@ public:
 	void ResetView();
 	/** Центр и радиус собранного образца в мире - чтобы навести камеру. */
 	void GetViewFocus(FVector& OutCenter, float& OutRadius) const;
+	/** Луч из камеры: подсветить деталь под курсором. Возвращает имя детали или NAME_None. */
+	FName TraceHover(const FVector& Start, const FVector& End);
+	/** Снять деталь под курсором. false + причина, если её пока держит другая деталь. */
+	bool TryTakePart(FName Part, FString& OutReason);
+	FName GetHovered() const { return Hovered; }
+	FString GetHoveredName() const;
+	FString GetHoveredDescription() const;
+	FString GetMessage() const { return Message; }
+	/** Мировой центр детали - для проверок и подсказок. */
+	bool GetPartCenter(FName Part, FVector& Out) const;
 
 	int32 GetStep() const { return Step; }
 	int32 GetStepCount() const { return Steps.Num(); }
@@ -63,6 +73,9 @@ protected:
 
 	int32 Step = 0;
 	FName Stage = TEXT("Field");
+	FName Hovered;
+	FString Message;
+	const FPBLWeaponPartStep* FindStep(FName Part) const;
 
 	// --- Config ---
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") FName WeaponName = TEXT("Glock17");
@@ -73,4 +86,6 @@ protected:
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") float DisplayScale = 3.0f;
 	/** Скорость перехода детали на место, см/с. */
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") float MoveSpeed = 90.0f;
+	/** Материал подсветки детали под курсором. */
+	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") TSoftObjectPtr<class UMaterialInterface> HighlightMaterial;
 };
