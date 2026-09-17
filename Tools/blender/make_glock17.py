@@ -28,6 +28,15 @@ SPEC = {
     "slide_length":    (186.0, "est"),  "slide_height":    (25.5,  "est"),
     "barrel_outer":    (15.5,  "est"),  "mag_length":      (108.0, "est"),
     "mag_width":       (27.0,  "est"),  "mag_thickness":   (10.5,  "est"),
+    # Внутренние детали: расположение выведено из схемы Браунинга с перекосом ствола и патента
+    # Гастона Глока US 4,539,889; размеры - реконструкция по пропорциям, подлежат обмеру.
+    "striker_length":  (62.0,  "est"),  "striker_dia":      (5.5,  "est"),
+    "striker_tip_dia": (2.4,   "est"),  "spacer_sleeve_od": (9.0,  "est"),
+    "fp_spring_od":    (7.0,   "est"),  "cover_plate_h":    (16.0, "est"),
+    "extractor_len":   (22.0,  "est"),  "fp_safety_dia":    (3.2,  "est"),
+    "locking_block_w": (12.0,  "est"),  "slide_lock_w":     (34.0, "est"),
+    "trigger_bar_len": (62.0,  "est"),  "housing_len":      (26.0, "est"),
+    "slide_stop_len":  (52.0,  "est"),  "mag_catch_h":      (12.0, "est"),
 }
 
 
@@ -105,8 +114,6 @@ frame_profile = [
 frame = L.profile_extrude("Frame", frame_profile, 30.0)
 L.boolean(frame, L.box("magwell", (24, 22, 100), (grip_top_x - 6 - dx / 2, 0, grip_bot_z + 48)))
 L.boolean(frame, L.box("tguard", (40, 34, 26), (-82, 0, bot - 14)))
-# Затворная задержка: у Gen5 двусторонняя, у прежних только слева - на габаритную ширину влияет одинаково.
-frame = L.boolean(frame, L.box("slidestop", (54, S["overall_width"], 6), (-86, 0, bot - 4)), "UNION")
 
 # --- Отличия поколения ---
 if G["rail"]:
@@ -147,6 +154,82 @@ frame = L.boolean(frame, grip, "UNION")
 frame.name = "Frame"
 parts["Frame"] = frame
 
+# =====================================================================================
+# ВНУТРЕННИЕ ДЕТАЛИ - реконструкция. Взаимное расположение следует из схемы запирания
+# с перекосом ствола (Браунинг) и патента US 4,539,889; размеры помечены как est.
+# =====================================================================================
+BREECH_X = -114.0 - 4.0          # казённый срез ствола, за ним зеркало затвора
+
+# --- Ударник с пружиной, муфтой и полукольцами ---
+striker = L.revolve("Striker", [(-S["striker_length"], 3.2), (-S["striker_length"] + 10, 4.2),
+                                (-46, 4.2), (-44, S["striker_dia"] / 2), (-14, S["striker_dia"] / 2),
+                                (-12, 3.0), (-2, 3.0), (0, S["striker_tip_dia"] / 2)], 16)
+L.move(striker, (BREECH_X - 2, 0, 0))
+parts["Striker"] = striker
+
+fp_spring = L.helix("FiringPinSpring", coil_r=S["fp_spring_od"] / 2, wire_r=0.65, pitch=3.4, turns=11)
+L.move(fp_spring, (BREECH_X - 56, 0, 0))
+parts["FiringPinSpring"] = fp_spring
+
+sleeve = L.revolve("SpacerSleeve", [(0, S["spacer_sleeve_od"] / 2), (30, S["spacer_sleeve_od"] / 2)], 16)
+L.boolean(sleeve, L.revolve("sl_bore", [(-2, 3.8), (32, 3.8)], 16))
+L.move(sleeve, (BREECH_X - 54, 0, 0))
+parts["SpacerSleeve"] = sleeve
+
+cups = L.box("SpringCups", (6, 9, 9), (BREECH_X - S["striker_length"] + 6, 0, 0))
+L.boolean(cups, L.revolve("cups_bore", [(-4, 2.2), (4, 2.2)], 12))
+parts["SpringCups"] = cups
+
+# --- Крышка затвора: держит всю сборку ударника сзади ---
+plate = L.box("SlideCoverPlate", (2.5, 17.0, S["cover_plate_h"]), (-183.0, 0, 3.0))
+parts["SlideCoverPlate"] = plate
+
+# --- Выбрасыватель: в правой стенке затвора, зацеп за закраину гильзы ---
+extr = L.box("Extractor", (S["extractor_len"], 5.0, 8.0), (BREECH_X - 9, 9.5, 1.0))
+extr = L.boolean(extr, L.box("extr_hook", (4.0, 5.0, 4.0), (BREECH_X + 1, 8.0, -1.0)), "UNION")
+parts["Extractor"] = extr
+
+plunger = L.revolve("ExtractorPlunger", [(0, S["fp_safety_dia"] / 2), (26, S["fp_safety_dia"] / 2)], 12)
+L.move(plunger, (BREECH_X - 46, 9.5, 1.0))
+parts["ExtractorPlunger"] = plunger
+
+# --- Предохранитель ударника: плунжер поперёк канала ударника, снимается спусковой тягой ---
+fps = L.revolve("FiringPinSafety", [(0, S["fp_safety_dia"] / 2), (11, S["fp_safety_dia"] / 2)], 12, axis="Z")
+L.move(fps, (BREECH_X - 14, 0, -6.0))
+parts["FiringPinSafety"] = fps
+
+# --- Блок запирания: принимает проушину ствола, задаёт перекос при откате ---
+lb = L.box("LockingBlock", (20.0, S["locking_block_w"], 16.0), (-104.0, 0, bot - 6.0))
+L.boolean(lb, L.box("lb_slot", (12.0, 12.5, 9.0), (-104.0, 0, bot + 1.0)))
+parts["LockingBlock"] = lb
+
+# --- Защёлка разборки: поперечный сухарь, опускается при снятии затвора ---
+sl = L.box("SlideLock", (5.0, S["slide_lock_w"], 7.0), (-98.0, 0, bot - 13.0))
+parts["SlideLock"] = sl
+
+# --- Затворная задержка: рычаг по левой стороне рамки ---
+ss = L.box("SlideStop", (S["slide_stop_len"], 3.0, 6.0), (-86.0, -15.5, bot - 4.0))
+ss = L.boolean(ss, L.box("ss_tab", (7.0, 4.0, 9.0), (-64.0, -15.5, bot - 1.0)), "UNION")
+parts["SlideStop"] = ss
+
+# --- Спусковой крючок с тягой и коннектором ---
+trig = L.box("Trigger", (7.0, 6.0, 15.0), (-133.0, 0, bot - 24.0))
+bar = L.box("trigger_bar", (S["trigger_bar_len"], 2.2, 5.0), (-133.0 - S["trigger_bar_len"] / 2, 5.0, bot - 20.0))
+trig = L.boolean(trig, bar, "UNION")
+parts["Trigger"] = trig
+
+conn = L.box("Connector", (9.0, 2.0, 7.0), (-172.0, 5.0, bot - 17.0))
+parts["Connector"] = conn
+
+housing = L.box("TriggerHousing", (S["housing_len"], 16.0, 20.0), (-172.0, 0, bot - 28.0))
+L.boolean(housing, L.box("hs_hollow", (20.0, 11.0, 14.0), (-172.0, 0, bot - 28.0)))
+parts["TriggerHousing"] = housing
+
+# --- Защёлка магазина ---
+# Защёлка справа и затворная задержка слева вместе дают габаритную ширину 34 мм
+mc = L.box("MagCatch", (8.0, 6.0, S["mag_catch_h"]), (-140.0, 14.0, bot - 30.0))
+parts["MagCatch"] = mc
+
 # --- Возвратная пружина в сборе: направляющий стержень и витая пружина ---
 rod = L.revolve("rod", [(-92, 2.0), (-8, 2.0), (-6, 4.5), (0, 4.5)], 16)
 rsa = L.boolean(rod, L.helix("spring", coil_r=5.2, wire_r=0.9, pitch=6.5, turns=12, axis_x=-88), "UNION")
@@ -173,10 +256,13 @@ MATS = {
     "RecoilSpring": L.material("Spring_Steel", (0.42, 0.42, 0.44), 1.0, 0.22),
 }
 BEVEL_W = {"Slide": 0.5, "Barrel": 0.4, "Frame": 0.6, "Magazine": 0.4, "RecoilSpring": 0.15}
+# Внутренние детали: сталь, кроме полимерных корпуса УСМ, спуска и защёлки магазина.
+POLYMER_PARTS = {"TriggerHousing", "Trigger", "MagCatch", "Magazine"}
+STEEL_BRIGHT = L.material("Steel_Bright", (0.36, 0.36, 0.38), 1.0, 0.24)
 for n, ob in parts.items():
-    L.bevel(ob, width=BEVEL_W[n], segments=2)
+    L.bevel(ob, width=BEVEL_W.get(n, 0.2), segments=2)
     L.shade_smooth(ob)
-    L.assign(ob, MATS[n])
+    L.assign(ob, MATS.get(n, MATS["Frame"] if n in POLYMER_PARTS else STEEL_BRIGHT))
 
 # --- Проверка габаритов против таблицы источника ---
 print(f"@@ === {GEN} ({G['year']}): rail={G['rail']} grooves={G['finger_grooves']} flare={G['magwell_flare']} pins={G['pins']} ===")
@@ -223,12 +309,30 @@ report["_provenance"] = {"sources": {k: v[1] for k, v in SPEC.items()},
                          "completeness_pct": round(completeness, 1)}
 
 # --- Порядок и направление съёма при неполной разборке ---
+# Неполная разборка (field strip) и полная (armorer). dir - направление съёма, dist - на сколько отводится.
 report["_fieldstrip"] = [
     {"part": "Magazine", "order": 1, "dir": [0, 0, -1], "dist_mm": 120, "name": "Магазин"},
     {"part": "Slide", "order": 2, "dir": [1, 0, 0], "dist_mm": 200, "name": "Затвор в сборе"},
     {"part": "RecoilSpring", "order": 3, "dir": [1, 0, 0], "dist_mm": 120, "name": "Возвратная пружина в сборе"},
     {"part": "Barrel", "order": 4, "dir": [1, 0, 0.3], "dist_mm": 140, "name": "Ствол"},
     {"part": "Frame", "order": 5, "dir": [0, 0, 0], "dist_mm": 0, "name": "Рамка"},
+]
+report["_fullstrip"] = [
+    {"part": "SlideCoverPlate",  "group": "slide", "order": 1, "dir": [0, 0, -1],  "dist_mm": 40, "name": "Крышка затвора"},
+    {"part": "SpringCups",       "group": "slide", "order": 2, "dir": [0, 0, 1],   "dist_mm": 45, "name": "Полукольца пружины"},
+    {"part": "FiringPinSpring",  "group": "slide", "order": 3, "dir": [-1, 0, 0],  "dist_mm": 70, "name": "Пружина ударника"},
+    {"part": "SpacerSleeve",     "group": "slide", "order": 4, "dir": [-1, 0, 0],  "dist_mm": 55, "name": "Муфта"},
+    {"part": "Striker",          "group": "slide", "order": 5, "dir": [-1, 0, 0],  "dist_mm": 90, "name": "Ударник"},
+    {"part": "FiringPinSafety",  "group": "slide", "order": 6, "dir": [0, 0, -1],  "dist_mm": 35, "name": "Предохранитель ударника"},
+    {"part": "ExtractorPlunger", "group": "slide", "order": 7, "dir": [0, 1, 0],   "dist_mm": 45, "name": "Толкатель выбрасывателя"},
+    {"part": "Extractor",        "group": "slide", "order": 8, "dir": [0, 1, 0],   "dist_mm": 40, "name": "Выбрасыватель"},
+    {"part": "SlideLock",        "group": "frame", "order": 9, "dir": [0, -1, 0],  "dist_mm": 55, "name": "Защёлка разборки"},
+    {"part": "LockingBlock",     "group": "frame", "order": 10, "dir": [0, 0, 1],  "dist_mm": 50, "name": "Блок запирания"},
+    {"part": "SlideStop",        "group": "frame", "order": 11, "dir": [0, -1, 0], "dist_mm": 45, "name": "Затворная задержка"},
+    {"part": "TriggerHousing",   "group": "frame", "order": 12, "dir": [0, 0, -1], "dist_mm": 60, "name": "Корпус УСМ с отражателем"},
+    {"part": "Connector",        "group": "frame", "order": 13, "dir": [0, 1, 0],  "dist_mm": 40, "name": "Коннектор"},
+    {"part": "Trigger",          "group": "frame", "order": 14, "dir": [0, 0, -1], "dist_mm": 70, "name": "Спусковой крючок с тягой"},
+    {"part": "MagCatch",         "group": "frame", "order": 15, "dir": [0, 1, 0],  "dist_mm": 40, "name": "Защёлка магазина"},
 ]
 
 for ob in parts.values():
@@ -243,7 +347,7 @@ with open(os.path.join(OUT, f"Glock17_{GEN}.json"), "w", encoding="utf-8") as f:
 EXPLODE = float(os.environ.get("PBL_EXPLODE", "0"))
 if EXPLODE > 0:
     import mathutils as MU
-    for item in report["_fieldstrip"]:
+    for item in report["_fieldstrip"] + report["_fullstrip"]:
         ob = parts.get(item["part"])
         if ob and item["dist_mm"]:
             d = MU.Vector(item["dir"]).normalized()
