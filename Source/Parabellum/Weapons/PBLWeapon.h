@@ -86,7 +86,8 @@ public:
 	void DrawTracerSegment(const FVector& From, const FVector& To) { SpawnTracer(From, To); }
 
 	// --- Обратные вызовы пули (сервер) ---
-	void OnProjectileImpact(const FHitResult& Hit, const FVector& ImpactVelocity_mps, float Damage);
+	/** Попадание пули (сервер). Energy_J - энергия, отданная в цели; bStopped - пуля осталась внутри. */
+	void OnProjectileImpact(const FHitResult& Hit, const FVector& ImpactVelocity_mps, float Damage, float Energy_J = 0.0f, bool bStopped = false);
 	void OnProjectileFinished(const FPBLShotReport& Report);
 
 protected:

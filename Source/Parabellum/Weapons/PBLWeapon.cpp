@@ -8,6 +8,7 @@
 #include "Components/PointLightComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Player/PBLHUD.h"
+#include "Weapons/PBLBulletDamage.h"
 #include "Ballistics/PBLBallistics.h"
 #include "Ballistics/PBLRecoil.h"
 #include "Ballistics/PBLRecoilSettings.h"
@@ -454,15 +455,23 @@ static FAutoConsoleCommandWithWorld CmdClearTrails(TEXT("pbl.Range.ClearTrails")
 		for (TActorIterator<AActor> It(World); It; ++It) { if (It->ActorHasTag(TEXT("PBLTrail"))) { It->Destroy(); } }
 	}));
 
-void APBLWeapon::OnProjectileImpact(const FHitResult& Hit, const FVector& ImpactVelocity_mps, float DamageToApply)
+void APBLWeapon::OnProjectileImpact(const FHitResult& Hit, const FVector& ImpactVelocity_mps, float DamageToApply, float Energy_J, bool bStopped)
 {
 	if (!HasAuthority()) { return; }
 	const bool bCharacter = Hit.GetComponent() && Hit.GetComponent()->GetCollisionObjectType() == ECC_Pawn;
 	const bool bHead = bCharacter && Hit.GetComponent()->GetName().Contains(TEXT("Head"));
 	if (Hit.GetActor())
 	{
-		const float Applied = UGameplayStatics::ApplyPointDamage(Hit.GetActor(), DamageToApply, ImpactVelocity_mps.GetSafeNormal(), Hit,
-			OwnerCharacter ? OwnerCharacter->GetController() : nullptr, this, nullptr);
+		// Свой тип события: цель получает не только очки урона, но и физику удара (энергия в тканях, сквозное или нет).
+		FPBLBulletDamageEvent Event;
+		Event.Damage = DamageToApply;
+		Event.HitInfo = Hit;
+		Event.ShotDirection = ImpactVelocity_mps.GetSafeNormal();
+		Event.DamageTypeClass = UDamageType::StaticClass();
+		Event.Energy_J = Energy_J;
+		Event.ImpactVelocity_mps = ImpactVelocity_mps.Size();
+		Event.bStoppedInTarget = bStopped;
+		const float Applied = Hit.GetActor()->TakeDamage(DamageToApply, Event, OwnerCharacter ? OwnerCharacter->GetController() : nullptr, this);
 		if (bCharacter && Applied > 0.0f)
 		{
 			bool bKill = false;

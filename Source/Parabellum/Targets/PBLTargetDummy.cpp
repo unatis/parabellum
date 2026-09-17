@@ -4,7 +4,9 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SphereComponent.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Engine/DamageEvents.h"
+#include "Weapons/PBLBulletDamage.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/PBLPlayerState.h"
 #include "TimerManager.h"
@@ -79,7 +81,21 @@ void APBLTargetDummy::BeginPlay()
 
 void APBLTargetDummy::PlayAnim(UAnimSequence* Anim, bool bLoop)
 {
-	if (Anim) { Mesh->PlayAnimation(Anim, bLoop); }
+	if (!Anim) { return; }
+	Mesh->PlayAnimation(Anim, bLoop);
+	if (UAnimSingleNodeInstance* Single = Mesh->GetSingleNodeInstance()) { Single->SetPlayRate(1.0f); }
+}
+
+void APBLTargetDummy::PlayAnimReverse(UAnimSequence* Anim)
+{
+	if (!Anim) { return; }
+	Mesh->PlayAnimation(Anim, false);
+	if (UAnimSingleNodeInstance* Single = Mesh->GetSingleNodeInstance())
+	{
+		Single->SetPlayRate(-FMath::Max(GetUpRate, 0.1f));
+		Single->SetPosition(Anim->GetPlayLength(), false);
+		Single->SetPlaying(true);
+	}
 }
 
 float APBLTargetDummy::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -87,15 +103,23 @@ float APBLTargetDummy::TakeDamage(float DamageAmount, const FDamageEvent& Damage
 	if (!HasAuthority() || !IsAlive() || DamageAmount <= 0.0f) { return 0.0f; }
 
 	bool bHead = false;
+	float Energy_J = 0.0f;
 	if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
 	{
 		const FPointDamageEvent* P = static_cast<const FPointDamageEvent*>(&DamageEvent);
 		bHead = (P->HitInfo.GetComponent() == HeadHitbox);
 	}
+	if (DamageEvent.IsOfType(FPBLBulletDamageEvent::ClassID))
+	{
+		Energy_J = static_cast<const FPBLBulletDamageEvent*>(&DamageEvent)->Energy_J;
+	}
 	if (bHead) { DamageAmount *= HeadshotMultiplier; }
 
 	Health = FMath::Max(Health - DamageAmount, 0.0f);
-	UE_LOG(LogTemp, Display, TEXT("PBL: %s hit for %.0f%s, health %.0f"), *GetName(), DamageAmount, bHead ? TEXT(" (HEAD)") : TEXT(""), Health);
+	// Реакция - от физики удара, а не от очков: голова сбивает с ног при любой энергии, тело - от KnockdownEnergy_J.
+	const EPBLHitReaction Reaction = (bHead || Energy_J >= KnockdownEnergy_J) ? EPBLHitReaction::Knockdown : EPBLHitReaction::Stagger;
+	UE_LOG(LogTemp, Display, TEXT("PBL: %s hit for %.0f%s, E %.0f J -> %s, health %.0f"), *GetName(), DamageAmount, bHead ? TEXT(" (HEAD)") : TEXT(""),
+		Energy_J, Reaction == EPBLHitReaction::Knockdown ? TEXT("KNOCKDOWN") : TEXT("stagger"), Health);
 
 	if (APBLPlayerState* PS = EventInstigator ? EventInstigator->GetPlayerState<APBLPlayerState>() : nullptr)
 	{
@@ -106,6 +130,14 @@ float APBLTargetDummy::TakeDamage(float DamageAmount, const FDamageEvent& Damage
 	{
 		Die(EventInstigator);
 	}
+	else if (bKnockedDown)
+	{
+		// Уже лежит: новая анимация не нужна, урон засчитан.
+	}
+	else if (Reaction == EPBLHitReaction::Knockdown)
+	{
+		Multicast_Knockdown();
+	}
 	else
 	{
 		Multicast_Hit();
@@ -113,8 +145,37 @@ float APBLTargetDummy::TakeDamage(float DamageAmount, const FDamageEvent& Damage
 	return DamageAmount;
 }
 
+void APBLTargetDummy::Multicast_Knockdown_Implementation()
+{
+	UAnimSequence* Fall = DeathAnim.LoadSynchronous();
+	if (!Fall) { Multicast_Hit_Implementation(); return; }
+	GetWorldTimerManager().ClearTimer(IdleTimer);
+	bKnockedDown = true;
+	PlayAnim(Fall, false);
+	if (UAnimSingleNodeInstance* Single = Mesh->GetSingleNodeInstance()) { Single->SetPlayRate(FMath::Max(KnockdownRate, 0.1f)); }
+	// Упал -> полежал KnockdownHold -> встал (та же анимация задом наперёд).
+	const float FallTime = Fall->GetPlayLength() / FMath::Max(KnockdownRate, 0.1f);
+	UE_LOG(LogTemp, Display, TEXT("PBL: %s KNOCKDOWN: fall %.2f s + hold %.2f s -> get up"), *GetName(), FallTime, KnockdownHold);
+	GetWorldTimerManager().SetTimer(GetUpTimer, this, &APBLTargetDummy::StartGetUp, FallTime + KnockdownHold, false);
+}
+
+void APBLTargetDummy::StartGetUp()
+{
+	UAnimSequence* Fall = DeathAnim.LoadSynchronous();
+	if (!IsAlive() || !Fall) { return; }
+	PlayAnimReverse(Fall);
+	UE_LOG(LogTemp, Display, TEXT("PBL: %s getting up (%.2f s)"), *GetName(), Fall->GetPlayLength() / FMath::Max(GetUpRate, 0.1f));
+	GetWorldTimerManager().SetTimer(GetUpTimer, FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		bKnockedDown = false;
+		BackToIdle();
+	}), Fall->GetPlayLength() / FMath::Max(GetUpRate, 0.1f), false);
+}
+
 void APBLTargetDummy::Die(AController* Killer)
 {
+	GetWorldTimerManager().ClearTimer(GetUpTimer);
+	bKnockedDown = false;
 	if (APBLPlayerState* PS = Killer ? Killer->GetPlayerState<APBLPlayerState>() : nullptr)
 	{
 		PS->AddKill();
@@ -128,6 +189,7 @@ void APBLTargetDummy::Die(AController* Killer)
 void APBLTargetDummy::Respawn()
 {
 	Health = MaxHealth;
+	bKnockedDown = false;
 	BodyHitbox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	HeadHitbox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Multicast_Respawn();

@@ -110,7 +110,8 @@ void APBLProjectile::OnImpact(const FHitResult& Hit)
 		const float E0 = 0.5f * Cartridge.BulletMass_kg * V0 * V0;
 		const float E = 0.5f * Cartridge.BulletMass_kg * State.Velocity.SizeSquared();
 		const float Dmg = BaseDamage * (E0 > 0.0f ? E / E0 : 1.0f);
-		Weapon->OnProjectileImpact(Hit, State.Velocity, Dmg);
+		// Пуля здесь останавливается, значит отдала цели всю оставшуюся энергию.
+		Weapon->OnProjectileImpact(Hit, State.Velocity, Dmg, E, true);
 	}
 	Finish(true, &Hit);
 }
@@ -199,6 +200,24 @@ bool APBLProjectile::PenetrateLayer(const FHitResult& Hit, const FName MaterialN
 	return true;
 }
 
+/** Дистанция до выхода луча из габаритов компонента (метод плит). Нужна, чтобы после сквозного пробития
+ *  возобновить полёт гарантированно снаружи хитбокса: LineTraceComponent по сфере/капсуле часто не находит дальнюю грань,
+ *  и пуля стартовала изнутри - попадая в ту же цель второй раз (поймано 2026-09-17 на голове манекена). */
+static float RayExitDistanceFromBounds(const UPrimitiveComponent& Comp, const FVector& Origin, const FVector& Dir)
+{
+	const FBox Box = Comp.Bounds.GetBox();
+	float TMax = FLT_MAX;
+	for (int32 A = 0; A < 3; ++A)
+	{
+		const float D = Dir[A];
+		if (FMath::Abs(D) < KINDA_SMALL_NUMBER) { continue; }
+		const float T1 = (Box.Min[A] - Origin[A]) / D;
+		const float T2 = (Box.Max[A] - Origin[A]) / D;
+		TMax = FMath::Min(TMax, FMath::Max(T1, T2));
+	}
+	return (TMax < FLT_MAX) ? FMath::Max(TMax, 0.0f) : 2.0f * Comp.Bounds.SphereRadius;
+}
+
 FName APBLProjectile::BodyPartForHit(const FHitResult& Hit) const
 {
 	if (Hit.GetComponent() && Hit.GetComponent()->GetName().Contains(TEXT("Head"))) { return TEXT("Head"); }
@@ -225,12 +244,12 @@ bool APBLProjectile::WoundPawn(const FHitResult& Hit)
 	const float Far = Comp->Bounds.SphereRadius * 2.0f + 50.0f;
 	FHitResult ExitHit;
 	float Path_m = 0.25f;   // если дальняя грань не найдена - средняя толщина тела
-	FVector GeomExit = Entry + Dir * 25.0f;
 	if (Comp->LineTraceComponent(ExitHit, Entry + Dir * Far, Entry + Dir * 0.05f, FCollisionQueryParams(SCENE_QUERY_STAT(PBLWoundExit), true)))
 	{
 		Path_m = FMath::Max(FVector::Dist(Entry, ExitHit.ImpactPoint) / 100.0f, 0.01f);
-		GeomExit = ExitHit.ImpactPoint;
 	}
+	// Точка возобновления полёта - всегда снаружи хитбокса (по габаритам), независимо от того, нашлась ли дальняя грань.
+	const FVector GeomExit = Entry + Dir * (RayExitDistanceFromBounds(*Comp, Entry, Dir) + 1.0f);
 	// Хитбокс шире тела (капсула r 22 см): путь ограничиваем номинальной глубиной части с поправкой на угол.
 	const float Nominal_m = Data->BodyPartThickness(Part);
 	if (Nominal_m > 0.0f)
@@ -261,7 +280,7 @@ bool APBLProjectile::WoundPawn(const FHitResult& Hit)
 	{
 		UE_LOG(LogTemp, Display, TEXT("PBL wound: %s path %.0f mm: %.0f m/s ->%s | E %.0f J -> damage %.1f%s"), *Part.ToString(), Path_m * 1000.0f, Vin, *Summary, E, Dmg, bStopped ? TEXT(" STOPPED") : TEXT(" EXIT"));
 		if (!IsValid(Weapon)) { Weapon = nullptr; }
-		if (Weapon) { Weapon->OnProjectileImpact(Hit, State.Velocity, Dmg); }
+		if (Weapon) { Weapon->OnProjectileImpact(Hit, State.Velocity, Dmg, E, bStopped); }
 	}
 	const FVector StopPoint = Entry + Dir * (Depth_m * 100.0f);
 	if (bStopped)

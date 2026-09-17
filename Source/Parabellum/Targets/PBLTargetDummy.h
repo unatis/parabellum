@@ -9,6 +9,14 @@ class UCapsuleComponent;
 class USphereComponent;
 class UAnimSequence;
 
+/** Реакция на попадание: по зоне и энергии, отданной в теле. */
+UENUM()
+enum class EPBLHitReaction : uint8
+{
+	Stagger,    // шатание: слабый удар в тело
+	Knockdown   // сбивает с ног: голова или тело выше порога энергии
+};
+
 /**
  * Мишень тира: манекен с здоровьем. Авторитетна на сервере (урон, смерть, респавн),
  * клиентам рассылает только события для анимации. Стреляет и ходит - Э5.4/ИИ, не здесь.
@@ -32,9 +40,14 @@ protected:
 	void Die(AController* Killer);
 	void Respawn();
 	void PlayAnim(UAnimSequence* Anim, bool bLoop);
+	/** Проигрывание задом наперёд (вставание = падение наоборот: отдельной анимации подъёма в паке нет). */
+	void PlayAnimReverse(UAnimSequence* Anim);
 	void BackToIdle();
+	/** Лежит - начать вставать. */
+	void StartGetUp();
 
 	UFUNCTION(NetMulticast, Unreliable) void Multicast_Hit();
+	UFUNCTION(NetMulticast, Reliable)   void Multicast_Knockdown();
 	UFUNCTION(NetMulticast, Reliable)   void Multicast_Die();
 	UFUNCTION(NetMulticast, Reliable)   void Multicast_Respawn();
 
@@ -53,6 +66,9 @@ protected:
 
 	FTimerHandle RespawnTimer;
 	FTimerHandle IdleTimer;
+	FTimerHandle GetUpTimer;
+	/** Сбит с ног и ещё не встал (реакция, не смерть). */
+	bool bKnockedDown = false;
 
 	// --- Config ---
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") TSoftObjectPtr<USkeletalMesh> DummyMesh;
@@ -71,4 +87,12 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float RespawnDelay = 4.0f;
 	/** Сколько секунд после смерти тело остаётся видимым (длина анимации Dying ~ 2-3 с). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float DeathAnimHold = 3.0f;
+	/** Энергия в теле, от которой сбивает с ног (Дж). Попадание в голову сбивает при любой энергии. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float KnockdownEnergy_J = 500.0f;
+	/** Сколько лежать до попытки встать, с. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float KnockdownHold = 1.2f;
+	/** Скорость падения при сбивании с ног (анимация Dying длинная - для удара её ускоряем). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float KnockdownRate = 2.0f;
+	/** Скорость вставания (та же анимация задом наперёд). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Target") float GetUpRate = 1.5f;
 };
