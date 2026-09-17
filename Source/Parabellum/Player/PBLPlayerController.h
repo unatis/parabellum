@@ -52,6 +52,8 @@ public:
 	void BenchPrev();
 	void BenchStage();
 	void BenchReset();
+	void BenchFire();
+	void BenchSlowMo();
 
 private:
 	void UpdateBenchCamera(float Blend);

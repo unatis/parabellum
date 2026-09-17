@@ -111,6 +111,8 @@ void APBLPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &APBLPlayerController::BenchPrev);
 		InputComponent->BindKey(EKeys::T, IE_Pressed, this, &APBLPlayerController::BenchStage);
 		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &APBLPlayerController::BenchReset);
+		InputComponent->BindKey(EKeys::F, IE_Pressed, this, &APBLPlayerController::BenchFire);
+		InputComponent->BindKey(EKeys::G, IE_Pressed, this, &APBLPlayerController::BenchSlowMo);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &APBLPlayerController::BenchDragStart);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &APBLPlayerController::BenchDragStop);
 	}
@@ -412,4 +414,47 @@ static FAutoConsoleCommandWithWorldAndArgs CmdBenchHover(TEXT("pbl.Bench.Hover")
 		UE_LOG(LogTemp, Display, TEXT("PBL Bench hover: [%s] %s"), *B->GetHoveredName(), *B->GetHoveredDescription());
 		FString Reason;
 		if (!P.IsNone()) { B->TryTakePart(P, Reason); UE_LOG(LogTemp, Display, TEXT("PBL Bench take: %s"), *B->GetMessage()); }
+	}));
+
+void APBLPlayerController::BenchFire()
+{
+	if (bBenchMode && Bench.IsValid())
+	{
+		Bench->FireCycle();
+		UE_LOG(LogTemp, Display, TEXT("PBL Bench: %s"), *Bench->GetMessage());
+	}
+}
+
+void APBLPlayerController::BenchSlowMo()
+{
+	if (bBenchMode && Bench.IsValid()) { Bench->CycleSlowMotion(); }
+}
+
+static FAutoConsoleCommandWithWorld CmdBenchFire(
+	TEXT("pbl.Bench.Fire"),
+	TEXT("Run the action cycle on the armory bench"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W)
+	{
+		if (APBLPlayerController* PC = W ? Cast<APBLPlayerController>(W->GetFirstPlayerController()) : nullptr) { PC->BenchFire(); }
+	}));
+
+static FAutoConsoleCommandWithWorldAndArgs CmdBenchFreeze(
+	TEXT("pbl.Bench.Freeze"),
+	TEXT("Hold the action cycle at a given millisecond: pbl.Bench.Freeze <ms>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W)
+	{
+		APBLPlayerController* PC = W ? Cast<APBLPlayerController>(W->GetFirstPlayerController()) : nullptr;
+		APBLWeaponBench* B = PC ? PC->GetBench() : nullptr;
+		if (!B) { UE_LOG(LogTemp, Warning, TEXT("pbl.Bench.Freeze: сначала F3")); return; }
+		B->FreezeCycle(Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.0f);
+		UE_LOG(LogTemp, Display, TEXT("PBL Bench: %s"), *B->GetMessage());
+	}));
+
+static FAutoConsoleCommandWithWorldAndArgs CmdBenchSlow(
+	TEXT("pbl.Bench.Slow"),
+	TEXT("Playback slow motion factor for the action cycle: pbl.Bench.Slow <scale>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W)
+	{
+		APBLPlayerController* PC = W ? Cast<APBLPlayerController>(W->GetFirstPlayerController()) : nullptr;
+		if (APBLWeaponBench* B = PC ? PC->GetBench() : nullptr) { B->SetSlowMotion(Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.1f); }
 	}));

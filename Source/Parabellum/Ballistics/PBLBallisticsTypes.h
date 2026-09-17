@@ -72,6 +72,25 @@ struct FPBLFirearmData
 	UPROPERTY() float BoreAbovePivot_m = 0.075f;
 	/** Центр масс оружия от шарнира, м - для момента инерции. */
 	UPROPERTY() float CoMToPivot_m = 0.12f;
+
+	// --- Автоматика: из этих величин и импульса отдачи считается цикл перезаряжания ---
+	/** Схема: Browning (короткий ход ствола с перекосом), GasDI, GasPiston, Blowback, Bolt. */
+	UPROPERTY() FName ActionScheme = TEXT("Browning");
+	/** Масса подвижных частей (затвор со стволом), кг. */
+	UPROPERTY() float SlideMass_kg = 0.33f;
+	/** Полный ход затвора, м. */
+	UPROPERTY() float SlideTravel_m = 0.05f;
+	/** Возвратная пружина: поджатие в переднем положении (Н) и жёсткость (Н/м). */
+	UPROPERTY() float SpringPreload_N = 25.0f;
+	UPROPERTY() float SpringRate_Npm = 1000.0f;
+	/** Ход до отпирания, м, и угол перекоса ствола, град. */
+	UPROPERTY() float UnlockTravel_m = 0.003f;
+	UPROPERTY() float BarrelTilt_deg = 3.0f;
+	/** Сопротивление сверх возвратной пружины, Н: трение, взведение ударника, подача патрона. */
+	UPROPERTY() float SlideResist_N = 12.0f;
+	/** Сопротивление только на накате, Н: срыв патрона с магазина и досылание в патронник. */
+	UPROPERTY() float FeedResist_N = 30.0f;
+	bool IsRecoilOperated() const { return ActionScheme == TEXT("Browning") || ActionScheme == TEXT("Blowback"); }
 };
 
 /** Материал среды (Content/Data/Materials.csv). Пока одна модель - Понселе для мягких сред (гель, вода, ткани). */

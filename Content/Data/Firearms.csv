@@ -1,6 +1,6 @@
-Name,Cartridge,Barrel_mm,RPM,Action,Mass_kg,OverallLength_mm,MagSize,SightHeight_mm,ZeroRange_m,Dispersion_MOA,Hold,BoreAbovePivot_mm,CoMToPivot_mm,Notes
-Glock17,9x19_124_FMJ,114,0,Semi,0.905,202,17,20,25,4.0,Pistol,75,120,"Gen 5, масса с пустым магазином ~0.63 + магазин"
-M4A1,5.56x45_M855,368,800,Auto,3.4,838,30,66,50,2.5,Rifle,50,370,"14.5in, RIS"
-AKM,7.62x39_M43,415,600,Auto,3.5,880,30,55,100,4.0,Rifle,60,370,
-M14,7.62x51_M80,559,0,Semi,4.5,1126,20,50,100,2.0,Rifle,55,400,
-Remington700_308,.308_168_SMK,610,0,Bolt,4.1,1130,5,45,100,1.0,Rifle,45,420,"24in, эталон для сверки"
+Name,Cartridge,Barrel_mm,RPM,Action,Mass_kg,OverallLength_mm,MagSize,SightHeight_mm,ZeroRange_m,Dispersion_MOA,Hold,BoreAbovePivot_mm,CoMToPivot_mm,Action_Scheme,SlideMass_kg,SlideTravel_mm,SpringPreload_N,SpringRate_N_per_m,UnlockTravel_mm,BarrelTilt_deg,SlideResist_N,FeedResist_N,Notes
+Glock17,9x19_124_FMJ,114,0,Semi,0.905,202,17,20,25,4.0,Pistol,75,120,Browning,0.330,50,25,1000,3.0,3.0,12,16,"Gen 5, масса с пустым магазином ~0.63 + магазин"
+M4A1,5.56x45_M855,368,800,Auto,3.4,838,30,66,50,2.5,Rifle,50,370,GasDI,0.310,95,30,1100,0.0,0.0,0,0,"14.5in, RIS"
+AKM,7.62x39_M43,415,600,Auto,3.5,880,30,55,100,4.0,Rifle,60,370,GasPiston,0.520,130,35,900,0.0,0.0,0,0,
+M14,7.62x51_M80,559,0,Semi,4.5,1126,20,50,100,2.0,Rifle,55,400,GasPiston,0.480,105,40,1200,0.0,0.0,0,0,
+Remington700_308,.308_168_SMK,610,0,Bolt,4.1,1130,5,45,100,1.0,Rifle,45,420,Bolt,0.000,0,0,0,0.0,0.0,0,0,"24in, эталон для сверки"

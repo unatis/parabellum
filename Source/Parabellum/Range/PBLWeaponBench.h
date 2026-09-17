@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Ballistics/PBLBallisticsTypes.h"
+#include "Ballistics/PBLCycle.h"
 #include "PBLWeaponBench.generated.h"
 
 class UStaticMeshComponent;
@@ -45,6 +46,19 @@ public:
 	/** Мировой центр детали - для проверок и подсказок. */
 	bool GetPartCenter(FName Part, FVector& Out) const;
 
+	// --- Цикл автоматики: подвижные части движутся по расчёту из импульса выстрела, а не по анимации ---
+	/** Выстрел на стенде: запустить цикл. */
+	void FireCycle();
+	/** Переключить замедление показа по кругу. */
+	void CycleSlowMotion();
+	/** Остановить цикл на заданной миллисекунде от выстрела и держать позу. */
+	void FreezeCycle(float Milliseconds);
+	/** Задать замедление показа напрямую. */
+	void SetSlowMotion(float Scale) { TimeScale = FMath::Clamp(Scale, 0.001f, 1.0f); }
+	bool IsCycling() const { return Cycle.IsRunning(); }
+	/** Строка состояния цикла для HUD. */
+	FString GetCycleLine() const;
+
 	int32 GetStep() const { return Step; }
 	int32 GetStepCount() const { return Steps.Num(); }
 	FName GetStage() const { return Stage; }
@@ -76,6 +90,15 @@ protected:
 	FName Hovered;
 	FString Message;
 	const FPBLWeaponPartStep* FindStep(FName Part) const;
+	/** Деталь едет вместе с затвором? */
+	bool RidesWithSlide(FName Part) const;
+	/** Разложить подвижные части по текущему состоянию цикла. */
+	void ApplyCyclePose();
+
+	FPBLCycleState Cycle;
+	FPBLFirearmData Firearm;
+	float TimeScale = 0.1f;
+	bool bCycleFrozen = false;
 
 	// --- Config ---
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") FName WeaponName = TEXT("Glock17");
@@ -88,4 +111,6 @@ protected:
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") float MoveSpeed = 90.0f;
 	/** Материал подсветки детали под курсором. */
 	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") TSoftObjectPtr<class UMaterialInterface> HighlightMaterial;
+	/** Замедления показа цикла, переключаются по кругу. */
+	UPROPERTY(Config, EditAnywhere, Category = "Parabellum|Bench") TArray<float> SlowMotionSteps = { 0.1f, 0.03f, 0.01f, 1.0f };
 };

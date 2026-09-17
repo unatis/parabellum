@@ -105,6 +105,15 @@ void UPBLWeaponDataSubsystem::Reload()
 			{ const FString H = R.FindRef(TEXT("Hold")); if (!H.IsEmpty()) { F.Hold = FName(*H); } }
 			F.BoreAbovePivot_m = Num(R, TEXT("BoreAbovePivot_mm"), 75.0f) / 1000.0f;
 			F.CoMToPivot_m = Num(R, TEXT("CoMToPivot_mm"), 120.0f) / 1000.0f;
+			{ const FString A = R.FindRef(TEXT("Action_Scheme")); if (!A.IsEmpty()) { F.ActionScheme = FName(*A); } }
+			F.SlideMass_kg = Num(R, TEXT("SlideMass_kg"), 0.33f);
+			F.SlideTravel_m = Num(R, TEXT("SlideTravel_mm"), 50.0f) / 1000.0f;
+			F.SpringPreload_N = Num(R, TEXT("SpringPreload_N"), 25.0f);
+			F.SpringRate_Npm = Num(R, TEXT("SpringRate_N_per_m"), 1000.0f);
+			F.UnlockTravel_m = Num(R, TEXT("UnlockTravel_mm"), 3.0f) / 1000.0f;
+			F.BarrelTilt_deg = Num(R, TEXT("BarrelTilt_deg"), 3.0f);
+			F.SlideResist_N = Num(R, TEXT("SlideResist_N"), 12.0f);
+			F.FeedResist_N = Num(R, TEXT("FeedResist_N"), 30.0f);
 			if (!F.Name.IsNone()) { Firearms.Add(F.Name, F); }
 		}
 	}
