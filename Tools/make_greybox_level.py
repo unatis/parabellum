@@ -291,9 +291,10 @@ def main():
 
     add_bunker_shell()
 
-    floor_mat = make_floor_material()
-    # Бетон: альбедо ~0.2, как у настоящего, чуть тёплый и очень шероховатый.
-    concrete = make_simple_material("M_Concrete", (0.200, 0.195, 0.185), 0.92)
+    # Поверхности бункера - из /Game/Surfaces (Tools/import_surfaces.bat). Если их ещё нет,
+    # откатываемся на простые материалы: уровень должен собираться и без текстур.
+    floor_mat = eal.load_asset("/Game/Surfaces/MI_Concrete_FloorLines") or make_floor_material()
+    concrete = eal.load_asset("/Game/Surfaces/MI_Concrete_Wall") or         make_simple_material("M_Concrete", (0.200, 0.195, 0.185), 0.92)
     for label, center, size, rot in LAYOUT:
         a = spawn(unreal.StaticMeshActor, center, rot, label, "Geometry")
         a.static_mesh_component.set_static_mesh(cube)
