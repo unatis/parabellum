@@ -106,3 +106,102 @@ def box(name, size, center=(0, 0, 0)):
 
 def dims(ob):
     return tuple(round(v, 1) for v in ob.dimensions)
+
+
+def move(ob, v):
+    """Сдвиг геометрии без операторов (надёжнее, чем location + transform_apply)."""
+    from mathutils import Matrix
+    ob.data.transform(Matrix.Translation(Vector(v)))
+    return ob
+
+
+def rrect_ring(cx, cy, z, w, d, r, n=6):
+    """Кольцо-скруглённый прямоугольник в плоскости XY на высоте z. w - вдоль X, d - вдоль Y."""
+    pts = []
+    hw, hd = w / 2 - r, d / 2 - r
+    for (sx, sy, a0) in ((1, 1, 0.0), (-1, 1, math.pi / 2), (-1, -1, math.pi), (1, -1, 1.5 * math.pi)):
+        for i in range(n):
+            a = a0 + (math.pi / 2) * i / (n - 1)
+            pts.append((cx + sx * hw + r * math.cos(a) * (1 if sx > 0 else -1) * (1 if abs(math.cos(a)) else 1),
+                        cy + sy * hd + r * math.sin(a) * (1 if sy > 0 else -1), z))
+    # проще и устойчивее: параметрическое суперэллиптическое кольцо
+    pts = []
+    total = 4 * n
+    for i in range(total):
+        t = 2 * math.pi * i / total
+        ct, st = math.cos(t), math.sin(t)
+        k = 4.0   # степень суперэллипса: чем больше, тем прямоугольнее
+        x = cx + (w / 2) * math.copysign(abs(ct) ** (2.0 / k), ct)
+        y = cy + (d / 2) * math.copysign(abs(st) ** (2.0 / k), st)
+        pts.append((x, y, z))
+    return pts
+
+
+def loft(name, rings, cap=True):
+    """Оболочка по набору колец (каждое - список точек одинаковой длины)."""
+    ob = new_mesh(name)
+    bm = bmesh.new()
+    vs = [[bm.verts.new(p) for p in ring] for ring in rings]
+    n = len(rings[0])
+    for A, B in zip(vs[:-1], vs[1:]):
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((A[i], A[j], B[j], B[i]))
+    if cap:
+        bm.faces.new(vs[0][::-1])
+        bm.faces.new(vs[-1])
+    bm.normal_update()
+    bm.to_mesh(ob.data)
+    bm.free()
+    return ob
+
+
+def bevel(ob, width=0.4, segments=2, angle_deg=35.0):
+    """Фаски по рёбрам: без них металл и пластик читаются как картон - блик по кромке даёт 'дорогой' вид."""
+    m = ob.modifiers.new("bevel", 'BEVEL')
+    m.width = width
+    m.segments = segments
+    m.limit_method = 'ANGLE'
+    m.angle_limit = math.radians(angle_deg)
+    m.use_clamp_overlap = True
+    m.harden_normals = False
+    bpy.context.view_layer.objects.active = ob
+    try:
+        bpy.ops.object.modifier_apply(modifier=m.name)
+    except RuntimeError:
+        ob.modifiers.remove(m)
+    return ob
+
+
+def shade_smooth(ob, angle_deg=30.0):
+    """Сглаживание по углу: округлости гладкие, плоские грани остаются плоскими."""
+    bpy.ops.object.select_all(action='DESELECT')
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    try:
+        bpy.ops.object.shade_auto_smooth(angle=math.radians(angle_deg))
+    except Exception:
+        ob.data.polygons.foreach_set("use_smooth", [False] * len(ob.data.polygons))
+    ob.select_set(False)
+    return ob
+
+
+def material(name, base_color, metallic, roughness):
+    m = bpy.data.materials.get(name)
+    if m is None:
+        m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = m.node_tree.nodes.get("Principled BSDF")
+    b.inputs["Base Color"].default_value = (*base_color, 1.0)
+    b.inputs["Metallic"].default_value = metallic
+    b.inputs["Roughness"].default_value = roughness
+    m.diffuse_color = (*base_color, 1.0)
+    m.metallic = metallic
+    m.roughness = roughness
+    return m
+
+
+def assign(ob, mat):
+    ob.data.materials.clear()
+    ob.data.materials.append(mat)
+    return ob
