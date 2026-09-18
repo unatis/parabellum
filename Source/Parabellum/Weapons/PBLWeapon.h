@@ -192,6 +192,13 @@ protected:
 	float AimAlpha = 0.0f;
 	/** Текущая поза viewmodel (бедро/прицел + отдача). */
 	void UpdateViewTransform();
+	/** Раскачка от походки: частота берётся из скорости и длины шага, а не задаётся числом. */
+	void StepGaitBob(float DeltaSeconds, FVector& OutOffset, FRotator& OutRotation);
+	/** Фаза походки в радианах: растёт со скоростью шагов. */
+	float GaitPhase = 0.0f;
+	float GaitAmplitude = 0.0f;
+	FVector GaitOffset = FVector::ZeroVector;
+	FRotator GaitRotation = FRotator::ZeroRotator;
 	/** Поза прицеливания: положение и поворот, при которых линия прицеливания проходит через глаз. */
 	void ComputeAimPose(FVector& OutLoc, FQuat& OutRot) const;
 public:

@@ -54,6 +54,30 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Movement", meta = (ForceUnits = "cm/s"))
 	float MaxSprintSpeed = 700.0f;
 
+	/** Длина шага при обычной ходьбе, см. У человека ростом 180 это 75-80 (0.41-0.45 роста). */
+	UPROPERTY(Config, EditAnywhere, Category = "Movement|Походка", meta = (ForceUnits = "cm"))
+	float StepLength = 75.0f;
+
+	/** Насколько шаг удлиняется с ростом скорости, см на каждый м/с сверх ходьбы.
+	    Бегущий не просто чаще перебирает ногами - он и шире шагает, иначе темп выходит вздорным. */
+	UPROPERTY(Config, EditAnywhere, Category = "Movement|Походка")
+	float StepLengthGain = 18.0f;
+
+	/** Размах оружия при ходьбе: вверх-вниз на частоте шага, вбок - на половинной (полный цикл
+	    походки - два шага), плюс небольшой крен. Значения при обычной ходьбе; с бегом растут. */
+	UPROPERTY(Config, EditAnywhere, Category = "Movement|Походка", meta = (ForceUnits = "cm"))
+	float BobVertical = 1.1f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Movement|Походка", meta = (ForceUnits = "cm"))
+	float BobLateral = 1.6f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Movement|Походка", meta = (ForceUnits = "deg"))
+	float BobRoll = 0.9f;
+
+	/** Во сколько раз гасится раскачка при прицеливании: оружие придерживают, но не намертво. */
+	UPROPERTY(Config, EditAnywhere, Category = "Movement|Походка")
+	float BobAimScale = 0.3f;
+
 	/** Множитель скорости ходьбы при прицеливании через мушку (реально с вытянутым пистолетом идут шагом ~0.5-0.6 от быстрого шага). */
 	UPROPERTY(Config, EditAnywhere, Category = "Movement")
 	float AimSpeedScale = 0.6f;

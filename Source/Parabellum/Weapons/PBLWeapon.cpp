@@ -13,6 +13,7 @@
 #include "Weapons/PBLEjectedCase.h"
 #include "Ballistics/PBLBallistics.h"
 #include "Ballistics/PBLCycle.h"
+#include "Character/PBLMovementSettings.h"
 #include "Ballistics/PBLRecoil.h"
 #include "Ballistics/PBLRecoilSettings.h"
 #include "Ballistics/PBLWeaponDataSubsystem.h"
@@ -246,8 +247,36 @@ void APBLWeapon::Tick(float DeltaSeconds)
 	// Прицел: альфа позы идёт к цели за AimTime.
 	const float Target = bAiming ? 1.0f : 0.0f;
 	AimAlpha = FMath::FInterpConstantTo(AimAlpha, Target, DeltaSeconds, 1.0f / FMath::Max(AimTime, 0.01f));
+	StepGaitBob(DeltaSeconds, GaitOffset, GaitRotation);
 	UpdateViewTransform();
-	if (!Recoil.IsActive() && FMath::IsNearlyEqual(AimAlpha, Target)) { SetActorTickEnabled(false); }
+	// Пока идём - тикаем: раскачка живёт, даже когда отдача улеглась и прицел на месте.
+	const bool bMoving = OwnerCharacter->GetVelocity().SizeSquared2D() > 100.0f || GaitAmplitude > 0.01f;
+	if (!Recoil.IsActive() && FMath::IsNearlyEqual(AimAlpha, Target) && !bMoving) { SetActorTickEnabled(false); }
+}
+
+void APBLWeapon::StepGaitBob(float DeltaSeconds, FVector& OutOffset, FRotator& OutRotation)
+{
+	const UPBLMovementSettings* M = GetDefault<UPBLMovementSettings>();
+	const float Speed = OwnerCharacter ? OwnerCharacter->GetVelocity().Size2D() : 0.0f;   // см/с
+
+	// Частота раскачки не задаётся числом, а следует из походки: сколько шагов в секунду делает
+	// идущий с такой скоростью. Шаг с ростом скорости удлиняется, иначе на беге вышел бы
+	// вздорный темп в четыре шага в секунду.
+	const float Extra = FMath::Max(0.0f, (Speed - M->MaxWalkSpeed)) / 100.0f;
+	const float Step = FMath::Max(M->StepLength + M->StepLengthGain * Extra, 20.0f);
+	const float Cadence = Speed / Step;                                                   // шагов в секунду
+	GaitPhase = FMath::Fmod(GaitPhase + Cadence * 2.0f * PI * DeltaSeconds, 2.0f * PI * 2.0f);
+
+	// Размах растёт со скоростью и плавно гаснет на остановке, чтобы оружие не замирало рывком.
+	const float Want = (Speed > 10.0f) ? FMath::Min(Speed / FMath::Max(M->MaxWalkSpeed, 1.0f), 2.0f) : 0.0f;
+	GaitAmplitude = FMath::FInterpTo(GaitAmplitude, Want, DeltaSeconds, 6.0f);
+	const float A = GaitAmplitude * FMath::Lerp(1.0f, M->BobAimScale, FMath::Clamp(AimAlpha, 0.0f, 1.0f));
+
+	// Вертикаль - на частоте шага, боковое и крен - на половинной: полный цикл походки это два шага.
+	const float Up = FMath::Sin(GaitPhase);
+	const float Side = FMath::Sin(GaitPhase * 0.5f);
+	OutOffset = FVector(0.0f, Side * M->BobLateral * A, Up * M->BobVertical * A);
+	OutRotation = FRotator(0.0f, Side * M->BobRoll * A * 0.5f, Side * M->BobRoll * A);
 }
 
 void APBLWeapon::ComputeAimPose(FVector& OutLoc, FQuat& OutRot) const
@@ -294,8 +323,8 @@ void APBLWeapon::UpdateViewTransform()
 	const FQuat Kick = FRotator(FMath::RadiansToDegrees(Recoil.Pitch - Recoil.PitchRest) * RS.VisualPitchScale, 0.0f, 0.0f).Quaternion();
 	const FVector HipLoc = ViewOffset - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f);
 	const FQuat HipRot = ViewRotation.Quaternion();
-	const FVector Loc = FMath::Lerp(HipLoc, AimLoc - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f), A);
-	const FQuat Rot = FQuat::Slerp(HipRot, AimRot, A).GetNormalized();
+	const FVector Loc = FMath::Lerp(HipLoc, AimLoc - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f), A) + GaitOffset;
+	const FQuat Rot = FQuat::Slerp(HipRot, AimRot, A).GetNormalized() * GaitRotation.Quaternion();
 	SetActorRelativeLocation(Kick.RotateVector(Loc));
 	SetActorRelativeRotation((Kick * Rot).Rotator());
 }
