@@ -693,3 +693,21 @@ static FAutoConsoleCommandWithWorld CmdAimPose(TEXT("pbl.Weapon.AimPose"),
 			*W->GetRootComponent()->GetComponentTransform().InverseTransformPosition(W->GetMuzzleLocation()).ToCompactString(),
 			*W->GetMuzzleLocation().ToCompactString(), *W->GetActorLocation().ToCompactString());
 	}));
+
+// Поправка позы прицеливания под конкретную модель: у покупной модели мушка и целик не обязаны
+// стоять ровно на паспортной высоте прицельной линии. Расчёт даёт линию по данным, а эта поправка
+// закрывает расхождение самой модели. Подбирается глазом и записывается в DefaultGame.ini.
+static FAutoConsoleCommandWithWorldAndArgs CmdAimNudge(TEXT("pbl.Weapon.AimNudge"),
+	TEXT("Nudge the aiming pose to match the model: pbl.Weapon.AimNudge <x> <y> <z> (cm)"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		APBLCharacter* C = World ? Cast<APBLCharacter>(World->GetFirstPlayerController() ? World->GetFirstPlayerController()->GetPawn() : nullptr) : nullptr;
+		APBLWeapon* W = C ? C->GetWeapon() : nullptr;
+		if (!W) { return; }
+		const FVector N(Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.0f,
+		                Args.Num() > 1 ? FCString::Atof(*Args[1]) : 0.0f,
+		                Args.Num() > 2 ? FCString::Atof(*Args[2]) : 0.0f);
+		W->SetAimNudge(N);
+		UE_LOG(LogTemp, Display, TEXT("AIMNUDGE %s  -> в DefaultGame.ini: AimNudge=(X=%.2f,Y=%.2f,Z=%.2f)"),
+			*N.ToCompactString(), N.X, N.Y, N.Z);
+	}));

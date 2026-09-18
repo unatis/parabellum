@@ -63,6 +63,8 @@ public:
 	void StopFire();
 	/** Прицеливание через мушку (ПКМ): поза viewmodel плавно выдвигается вперёд и совмещает линию прицела с глазом. */
 	void SetAiming(bool bInAiming);
+	/** Живая подстройка позы прицеливания под модель (см). */
+	void SetAimNudge(const FVector& N) { AimNudge = N; }
 	bool IsAiming() const { return bAiming; }
 	float GetAimAlpha() const { return AimAlpha; }
 	void StartReload();
@@ -249,8 +251,13 @@ private:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector ViewOffset = FVector(28.0f, 12.0f, -14.0f);
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FRotator ViewRotation = FRotator(0.0f, 0.0f, 0.0f);
 	/** Прицеливание: смещение и доворот viewmodel относительно позы от бедра при полном прицеле (координаты камеры: вперёд, вправо, вверх). */
-	/** Насколько вынести оружие вперёд относительно позы от бедра при прицеливании, см. */
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float AimForward_cm = 4.0f;
+	/**
+	 * Насколько вынести оружие вперёд относительно позы от бедра при прицеливании, см.
+	 * Свободный параметр: ось канала параллельна взгляду, поэтому линия прицеливания проходит
+	 * через глаз при любом выносе. Отвечает только за то, на какой дистанции держать оружие -
+	 * при 4 см целик оказывался в 3 см от глаза и прорезь было не разглядеть.
+	 */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float AimForward_cm = 34.0f;
 	/** Поправка на неточность модели: если у неё мушка не на высоте прицельной линии. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector AimNudge = FVector::ZeroVector;
 	/** Время выхода в прицел, с (реальная вскидка пистолета ~0.2 с). */
