@@ -121,15 +121,49 @@ parts["BarrelLink"] = link
 # --- Затвор: профиль сбоку, выдавленный на ширину; вырезаны окно выброса, паз рамки, канал ---
 sl, sh = S["slide_length"], S["slide_height"]
 top, bot = BORE_Z + 14.0, BORE_Z - 10.0
+def section(x, z_top, z_bot, width, r_top, r_bot=1.2, n=10):
+    """
+    Поперечное сечение затвора: плоские бока, скруглённый верх, слегка сбитый низ.
+    Оружие не плоское, и выдавливание бокового контура на постоянную ширину даёт картонную
+    вырезку - сколько ни уточняй сам контур. Поэтому строим по сечениям: высоту каждого
+    берём с фотографии, ширину и скругление - из ТТХ.
+    """
+    hw = width / 2.0
+    pts = []
+    for i in range(n):                       # верх: дуга слева направо
+        a = math.pi * i / (n - 1)
+        pts.append((x, -math.cos(a) * hw, z_top - r_top + math.sin(a) * r_top))
+    for i in range(n):                       # низ: дуга справа налево
+        a = math.pi * i / (n - 1)
+        pts.append((x, math.cos(a) * hw, z_bot + r_bot - math.sin(a) * r_bot))
+    return pts
+
+
 traced_top = clip(TRACED["top"], -sl, 0.0) if TRACED else []
 if len(traced_top) >= 6:
-    # Низ затвора остаётся расчётным - в силуэте его нет; верх идёт с фотографии.
-    slide_profile = [(0, bot + 2), (-4, bot), (-sl + 6, bot), (-sl, bot + 5)] + traced_top
-    print(f"@@ верх затвора: {len(traced_top)} точек с фотографии")
+    # Сечения через каждые 2 мм: верх с фотографии, низ и ширина - расчётные.
+    xs_t = [p[0] for p in traced_top]
+    zs_t = [p[1] for p in traced_top]
+    rings = []
+    x = -sl + 0.5
+    while x <= -0.5:
+        z_top = float(np.interp(x, xs_t, zs_t)) if "np" in dir() else None
+        if z_top is None:
+            # numpy в этом скрипте не нужен - интерполируем руками по двум соседям.
+            z_top = zs_t[0]
+            for (xa, za), (xb, zb) in zip(traced_top[:-1], traced_top[1:]):
+                if xa <= x <= xb:
+                    z_top = za + (zb - za) * ((x - xa) / max(xb - xa, 1e-6))
+                    break
+        z_bot = bot if x < -4 else bot + 2
+        rings.append(section(x, z_top, z_bot, S["slide_width"], S["slide_width"] / 2 - 1.0))
+        x += 2.0
+    slide = L.loft("Slide", rings)
+    print(f"@@ затвор: {len(rings)} сечений, верх с фотографии ({len(traced_top)} точек)")
 else:
     slide_profile = [(0, top - 3), (0, bot + 2), (-4, bot), (-sl + 6, bot), (-sl, bot + 5),
                      (-sl, top - 4), (-sl + 6, top), (-4, top)]
-slide = L.profile_extrude("Slide", slide_profile, S["slide_width"])
+    slide = L.profile_extrude("Slide", slide_profile, S["slide_width"])
 # Окно выброса над патронником, справа; вырез уходит ниже оси канала, иначе гильзе не выйти.
 L.boolean(slide, L.box("ejport", (46, 26, 18), (-bl + 19, 4, top - 7)))
 L.boolean(slide, L.box("railcut", (sl + 4, S["slide_width"] - 8, 12), (-sl / 2, 0, bot + 5)))
