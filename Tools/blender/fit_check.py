@@ -21,7 +21,7 @@ import bpy
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 MODEL_SCRIPT = ARGS[0] if ARGS else os.path.join(os.path.dirname(os.path.abspath(__file__)), "make_colt1911.py")
-PROFILE = ARGS[1] if len(ARGS) > 1 else os.path.join(ROOT, "Import", "Reference", "Colt1911_photo2", "profile.json")
+PROFILE = ARGS[1] if len(ARGS) > 1 else os.path.join(ROOT, "Reference", "Contours", "Colt1911_photo2.json")
 LENGTH_MM = float(ARGS[2]) if len(ARGS) > 2 else 210.0
 
 RES_X = 1600

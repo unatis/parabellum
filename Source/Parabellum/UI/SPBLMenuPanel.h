@@ -8,10 +8,11 @@ class APBLPlayerController;
 /**
  * Меню по Escape: настройки управления и выход.
  *
- * Значения лежат в UPBLMovementSettings (Config=Game) и применяются сразу, без кнопки
- * «применить»: скорости уходят в CharacterMovementComponent, чувствительность читается
- * при каждом движении мыши. SaveConfig() пишет их в конфиг, поэтому настройка переживает
- * перезапуск. Slate на C++, без ассетов.
+ * Значения лежат в UPBLMovementSettings и применяются сразу, без кнопки «применить»:
+ * скорости уходят в CharacterMovementComponent, чувствительность читается при каждом
+ * движении мыши. На диск их кладёт UPBLUserSettingsSubsystem::Capture() - в сейв, а не в
+ * конфиг проекта: DefaultGame.ini под контролем версий, и SaveConfig() на нём молча не
+ * работает. Slate на C++, без ассетов.
  */
 class SPBLMenuPanel : public SCompoundWidget
 {

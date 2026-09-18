@@ -14,8 +14,9 @@
   4. снимает верхний и нижний контур по каждому столбцу и прореживает их (Дуглас-Пекер),
      чтобы на выходе была полусотня осмысленных точек, а не две тысячи пикселей.
 
-Выход - Import/Reference/<name>/profile.json (точки в миллиметрах, готовые в profile_extrude)
-и overlay.png, где обвод нарисован поверх снимка: без этой картинки результату верить нельзя.
+Выход - Reference/Contours/<name>.json (точки в миллиметрах, переносится с репозиторием),
+та же копия рядом с фотографией в Import/Reference/<name>/, и там же overlay.png, где обвод
+нарисован поверх снимка: без этой картинки результату верить нельзя.
 
 Запуск: blender -b -P trace_profile.py -- <фото> <длина_мм> [имя]
 """
@@ -276,13 +277,22 @@ prof_top = simplify([to_mm(p) for p in pts_top], SIMPLIFY_MM)
 prof_bot = simplify([to_mm(p) for p in pts_bot], SIMPLIFY_MM)
 print(f"@@ контур: верх {len(pts_top)} -> {len(prof_top)} точек, низ {len(pts_bot)} -> {len(prof_bot)}")
 
+measured = {"source": os.path.basename(PHOTO), "known_length_mm": KNOWN_LENGTH_MM,
+            "mm_per_px": round(mm_per_px, 5), "rotation_deg": round(float(np.degrees(angle)), 3),
+            "measured_height_mm": round(float(height_mm), 2),
+            "slide_top_mm": slide_top_mm,
+            "note": "x от дульного среза назад отрицательный, y вниз от верхней точки отрицательный",
+            "top": prof_top, "bottom": prof_bot}
 with open(os.path.join(OUT, "profile.json"), "w", encoding="utf-8") as f:
-    json.dump({"source": os.path.basename(PHOTO), "known_length_mm": KNOWN_LENGTH_MM,
-               "mm_per_px": round(mm_per_px, 5), "rotation_deg": round(float(np.degrees(angle)), 3),
-               "measured_height_mm": round(float(height_mm), 2),
-               "slide_top_mm": slide_top_mm,
-               "note": "x от дульного среза назад отрицательный, y вниз от верхней точки отрицательный",
-               "top": prof_top, "bottom": prof_bot}, f, indent=1, ensure_ascii=False)
+    json.dump(measured, f, indent=1, ensure_ascii=False)
+
+# Вторая копия - в репозиторий. Фотографии лежат в Import/ и в git не попадают, а контур -
+# это уже результат обмера: несколько килобайт, которые без той же фотографии и тех же
+# настроек не повторить. Модели строятся из него, значит он должен переноситься с проектом.
+REPO = os.path.join(ROOT, "Reference", "Contours")
+os.makedirs(REPO, exist_ok=True)
+with open(os.path.join(REPO, NAME + ".json"), "w", encoding="utf-8") as f:
+    json.dump(measured, f, indent=1, ensure_ascii=False)
 
 # --- Картинка для проверки: без неё цифрам верить нельзя ---
 rgb = np.repeat((np.clip(gray, 0, 1) * 255).astype(np.uint8)[:, :, None], 3, axis=2)

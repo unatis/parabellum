@@ -78,7 +78,10 @@ def load_traced_profile():
     Силуэт даёт только НАРУЖНУЮ границу. Где кончается затвор и начинается рамка, в нём
     не написано - эта граница остаётся расчётной.
     """
-    path = os.path.join(os.path.dirname(OUT), "Reference", "Colt1911_photo2", "profile.json")
+    ROOT = os.path.dirname(os.path.dirname(OUT))
+    path = os.path.join(ROOT, "Reference", "Contours", "Colt1911_photo2.json")
+    if not os.path.exists(path):                       # старое место, рядом с фотографией
+        path = os.path.join(ROOT, "Import", "Reference", "Colt1911_photo2", "profile.json")
     if not os.path.exists(path):
         print("@@ контура с фотографии нет, беру обводы из таблицы")
         return None

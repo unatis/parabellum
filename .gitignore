@@ -23,7 +23,10 @@ Saved/
 Thumbs.db
 desktop.ini
 
-# Source assets for import (FBX, zips) - large binaries, kept locally
+# Source assets for import (FBX, zips) - large binaries, kept locally.
+# Что из этого и откуда восстанавливать - в SETUP.md, раздел «Чего нет в репозитории».
+# Контуры, снятые с фотографий, - исключение: они лежат в Reference/Contours/ и переносятся
+# с проектом, потому что это уже результат обмера, а не исходник.
 Import/
 
 # Playwright MCP scratch
