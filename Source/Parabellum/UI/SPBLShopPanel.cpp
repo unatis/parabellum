@@ -11,14 +11,9 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
 #include "Styling/CoreStyle.h"
+#include "UI/PBLSlateStyle.h"
 
 #define LOCTEXT_NAMESPACE "PBLShop"
-
-namespace
-{
-	FSlateFontInfo Font(int32 Size) { return FCoreStyle::GetDefaultFontStyle("Regular", Size); }
-	FSlateFontInfo BoldFont(int32 Size) { return FCoreStyle::GetDefaultFontStyle("Bold", Size); }
-}
 
 UPBLCollectionSubsystem* SPBLShopPanel::Collection() const
 {
@@ -34,7 +29,7 @@ void SPBLShopPanel::Construct(const FArguments& InArgs)
 	ChildSlot
 	[
 		SNew(SBorder)
-		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+		.BorderImage(PBLSlate::Solid())
 		.BorderBackgroundColor(FLinearColor(0.02f, 0.02f, 0.025f, 0.97f))
 		.Padding(FMargin(18.0f))
 		[
@@ -45,14 +40,14 @@ void SPBLShopPanel::Construct(const FArguments& InArgs)
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
-					[ SNew(STextBlock).Font(BoldFont(16)).Text(LOCTEXT("Title", "Оружейный магазин")) ]
+					[ SNew(STextBlock).Font(PBLSlate::BoldFont(16)).Text(LOCTEXT("Title", "Оружейный магазин")) ]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-					[ SNew(STextBlock).Font(BoldFont(14)).ColorAndOpacity(FLinearColor(1.0f, 0.86f, 0.45f))
+					[ SNew(STextBlock).Font(PBLSlate::BoldFont(14)).ColorAndOpacity(FLinearColor(1.0f, 0.86f, 0.45f))
 						.Text(this, &SPBLShopPanel::GetBalanceText) ]
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 10)
 				[
-					SNew(STextBlock).Font(Font(9)).ColorAndOpacity(FLinearColor(0.65f, 0.65f, 0.65f))
+					SNew(STextBlock).Font(PBLSlate::Font(9)).ColorAndOpacity(FLinearColor(0.65f, 0.65f, 0.65f))
 					.Text(LOCTEXT("Sub", "Купленное попадает в вашу коллекцию и встаёт на стенд в оружейке (F3). Валюта внутриигровая."))
 				]
 				+ SVerticalBox::Slot().FillHeight(1.0f)
@@ -65,7 +60,7 @@ void SPBLShopPanel::Construct(const FArguments& InArgs)
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
-					[ SNew(STextBlock).Font(Font(10)).ColorAndOpacity(FLinearColor(1.0f, 0.85f, 0.4f))
+					[ SNew(STextBlock).Font(PBLSlate::Font(10)).ColorAndOpacity(FLinearColor(1.0f, 0.85f, 0.4f))
 						.Text(this, &SPBLShopPanel::GetStatusText) ]
 					+ SHorizontalBox::Slot().AutoWidth()
 					[ SNew(SButton).Text(LOCTEXT("Close", "Закрыть (F4)")).OnClicked(this, &SPBLShopPanel::OnClose) ]
@@ -115,12 +110,12 @@ TSharedRef<SWidget> SPBLShopPanel::MakeRow(const FPBLCatalogueEntry& E)
 	}
 	else
 	{
-		Action = SNew(STextBlock).Font(Font(10)).ColorAndOpacity(FLinearColor(0.55f, 0.55f, 0.55f))
+		Action = SNew(STextBlock).Font(PBLSlate::Font(10)).ColorAndOpacity(FLinearColor(0.55f, 0.55f, 0.55f))
 			.Text(LOCTEXT("NoModel", "модели пока нет"));
 	}
 
 	return SNew(SBorder)
-		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+		.BorderImage(PBLSlate::Solid())
 		.BorderBackgroundColor(bOwned ? FLinearColor(0.10f, 0.14f, 0.10f, 0.9f) : FLinearColor(0.06f, 0.06f, 0.07f, 0.9f))
 		.Padding(FMargin(10.0f, 8.0f))
 		[
@@ -132,19 +127,19 @@ TSharedRef<SWidget> SPBLShopPanel::MakeRow(const FPBLCatalogueEntry& E)
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-					[ SNew(STextBlock).Font(BoldFont(13)).Text(FText::FromString(E.DisplayName)) ]
+					[ SNew(STextBlock).Font(PBLSlate::BoldFont(13)).Text(FText::FromString(E.DisplayName)) ]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10, 0, 0, 0)
-					[ SNew(STextBlock).Font(Font(10)).ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f))
+					[ SNew(STextBlock).Font(PBLSlate::Font(10)).ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f))
 						.Text(FText::FromString(FString::Printf(TEXT("%s · %d · %s"),
 							*E.Country, E.Year, *E.Cartridge.ToString()))) ]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10, 0, 0, 0)
-					[ SNew(STextBlock).Font(BoldFont(10)).ColorAndOpacity(FLinearColor(0.45f, 0.85f, 0.45f))
+					[ SNew(STextBlock).Font(PBLSlate::BoldFont(10)).ColorAndOpacity(FLinearColor(0.45f, 0.85f, 0.45f))
 						.Visibility(bOwned ? EVisibility::Visible : EVisibility::Collapsed)
 						.Text(LOCTEXT("Owned", "В КОЛЛЕКЦИИ")) ]
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 12, 0)
 				[
-					SNew(STextBlock).Font(Font(10)).ColorAndOpacity(FLinearColor(0.72f, 0.72f, 0.72f))
+					SNew(STextBlock).Font(PBLSlate::Font(10)).ColorAndOpacity(FLinearColor(0.72f, 0.72f, 0.72f))
 					.AutoWrapText(true).Text(FText::FromString(E.Description))
 				]
 			]

@@ -24,9 +24,14 @@ public:
 
 private:
 	/** Строка настройки: подпись, крутилка, единицы и пояснение. */
-	TSharedRef<SWidget> MakeRow(const FText& Label, float& Value, float Min, float Max, float Step,
-		const FText& Units, const FText& Hint);
-	void OnChanged(float NewValue, float* Target);
+	/**
+	 * Строка настройки. Scale переводит хранимое значение в то, что видит человек:
+	 * скорости движок держит в см/с, а показываем километры в час. Min/Max/Step - уже
+	 * в показанных единицах.
+	 */
+	TSharedRef<SWidget> MakeRow(const FText& Label, float& Value, float Scale, float Min, float Max,
+		float Step, const FText& Units, const FText& Hint);
+	void OnChanged(float NewValue, float* Target, float Scale);
 	FReply OnReset();
 	FReply OnQuit();
 	FReply OnClose();

@@ -3,6 +3,8 @@
 #include "Character/PBLCharacter.h"
 #include "Character/PBLMovementSettings.h"
 #include "Player/PBLPlayerController.h"
+#include "Player/PBLUserSettings.h"
+#include "Engine/GameInstance.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Input/SButton.h"
@@ -10,14 +12,15 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
 #include "Styling/CoreStyle.h"
+#include "UI/PBLSlateStyle.h"
 
 #define LOCTEXT_NAMESPACE "PBLMenu"
 
 namespace
 {
-	FSlateFontInfo Font(int32 Size) { return FCoreStyle::GetDefaultFontStyle("Regular", Size); }
-	FSlateFontInfo BoldFont(int32 Size) { return FCoreStyle::GetDefaultFontStyle("Bold", Size); }
 	UPBLMovementSettings* Settings() { return GetMutableDefault<UPBLMovementSettings>(); }
+	/** Движок держит скорость в см/с, человек мыслит километрами в час. */
+	constexpr float KmH = 0.036f;
 }
 
 void SPBLMenuPanel::Construct(const FArguments& InArgs)
@@ -28,7 +31,7 @@ void SPBLMenuPanel::Construct(const FArguments& InArgs)
 	ChildSlot
 	[
 		SNew(SBorder)
-		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+		.BorderImage(PBLSlate::Solid())
 		.BorderBackgroundColor(FLinearColor(0.02f, 0.02f, 0.025f, 0.97f))
 		.Padding(FMargin(20.0f))
 		[
@@ -36,29 +39,29 @@ void SPBLMenuPanel::Construct(const FArguments& InArgs)
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()
-				[ SNew(STextBlock).Font(BoldFont(16)).Text(LOCTEXT("Title", "Настройки управления")) ]
+				[ SNew(STextBlock).Font(PBLSlate::BoldFont(16)).Text(LOCTEXT("Title", "Настройки управления")) ]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 12)
 				[
-					SNew(STextBlock).Font(Font(9)).ColorAndOpacity(FLinearColor(0.65f, 0.65f, 0.65f))
+					SNew(STextBlock).Font(PBLSlate::Font(9)).ColorAndOpacity(FLinearColor(0.65f, 0.65f, 0.65f))
 					.AutoWrapText(true)
 					.Text(LOCTEXT("Sub", "Скорости пока отладочные: они нужны, чтобы подобрать ощущение движения. "
 						"Применяются сразу и сохраняются между запусками."))
 				]
 				+ SVerticalBox::Slot().AutoHeight()
-				[ MakeRow(LOCTEXT("Walk", "Скорость ходьбы"), S->MaxWalkSpeed, 80.0f, 1200.0f, 10.0f,
-					LOCTEXT("CmS", "см/с"), LOCTEXT("WalkHint", "W A S D")) ]
+				[ MakeRow(LOCTEXT("Walk", "Скорость ходьбы"), S->MaxWalkSpeed, KmH, 1.0f, 45.0f, 0.1f,
+					LOCTEXT("KmH", "км/ч"), LOCTEXT("WalkHint", "W A S D")) ]
 				+ SVerticalBox::Slot().AutoHeight()
-				[ MakeRow(LOCTEXT("Sprint", "Скорость бега"), S->MaxSprintSpeed, 80.0f, 1600.0f, 10.0f,
-					LOCTEXT("CmS2", "см/с"), LOCTEXT("SprintHint", "удерживать Shift; в прицеле бег не работает")) ]
+				[ MakeRow(LOCTEXT("Sprint", "Скорость бега"), S->MaxSprintSpeed, KmH, 1.0f, 60.0f, 0.1f,
+					LOCTEXT("KmH2", "км/ч"), LOCTEXT("SprintHint", "удерживать Shift; в прицеле бег не работает")) ]
 				+ SVerticalBox::Slot().AutoHeight()
-				[ MakeRow(LOCTEXT("Crouch", "Скорость приседа"), S->MaxCrouchSpeed, 40.0f, 600.0f, 5.0f,
-					LOCTEXT("CmS3", "см/с"), LOCTEXT("CrouchHint", "Ctrl")) ]
+				[ MakeRow(LOCTEXT("Crouch", "Скорость приседа"), S->MaxCrouchSpeed, KmH, 0.5f, 25.0f, 0.1f,
+					LOCTEXT("KmH3", "км/ч"), LOCTEXT("CrouchHint", "Ctrl")) ]
 				+ SVerticalBox::Slot().AutoHeight()
-				[ MakeRow(LOCTEXT("Sens", "Чувствительность мыши"), S->MouseSensitivity, 0.1f, 15.0f, 0.05f,
+				[ MakeRow(LOCTEXT("Sens", "Чувствительность мыши"), S->MouseSensitivity, 1.0f, 0.1f, 15.0f, 0.05f,
 					LOCTEXT("None", ""), LOCTEXT("SensHint", "градусов на единицу перемещения мыши")) ]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 14)
 				[
-					SNew(STextBlock).Font(Font(9)).ColorAndOpacity(FLinearColor(0.55f, 0.6f, 0.65f))
+					SNew(STextBlock).Font(PBLSlate::Font(9)).ColorAndOpacity(FLinearColor(0.55f, 0.6f, 0.65f))
 					.AutoWrapText(true).Text(this, &SPBLMenuPanel::GetSpeedHint)
 				]
 				+ SVerticalBox::Slot().AutoHeight()
@@ -78,8 +81,8 @@ void SPBLMenuPanel::Construct(const FArguments& InArgs)
 	];
 }
 
-TSharedRef<SWidget> SPBLMenuPanel::MakeRow(const FText& Label, float& Value, float Min, float Max, float Step,
-	const FText& Units, const FText& Hint)
+TSharedRef<SWidget> SPBLMenuPanel::MakeRow(const FText& Label, float& Value, float Scale, float Min, float Max,
+	float Step, const FText& Units, const FText& Hint)
 {
 	float* Target = &Value;
 	return SNew(SHorizontalBox)
@@ -87,9 +90,9 @@ TSharedRef<SWidget> SPBLMenuPanel::MakeRow(const FText& Label, float& Value, flo
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()
-			[ SNew(STextBlock).Font(Font(12)).Text(Label) ]
+			[ SNew(STextBlock).Font(PBLSlate::Font(12)).Text(Label) ]
 			+ SVerticalBox::Slot().AutoHeight()
-			[ SNew(STextBlock).Font(Font(9)).ColorAndOpacity(FLinearColor(0.55f, 0.55f, 0.55f)).Text(Hint) ]
+			[ SNew(STextBlock).Font(PBLSlate::Font(9)).ColorAndOpacity(FLinearColor(0.55f, 0.55f, 0.55f)).Text(Hint) ]
 		]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 		[
@@ -97,39 +100,41 @@ TSharedRef<SWidget> SPBLMenuPanel::MakeRow(const FText& Label, float& Value, flo
 			[
 				SNew(SSpinBox<float>)
 				.MinValue(Min).MaxValue(Max).Delta(Step)
-				.Value_Lambda([Target]() { return *Target; })
-				.OnValueChanged(this, &SPBLMenuPanel::OnChanged, Target)
+				.MinFractionalDigits(1).MaxFractionalDigits(2)
+				.Value_Lambda([Target, Scale]() { return *Target * Scale; })
+				.OnValueChanged(this, &SPBLMenuPanel::OnChanged, Target, Scale)
 			]
 		]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0, 0, 0)
-		[ SNew(SBox).WidthOverride(40.0f)[ SNew(STextBlock).Font(Font(10)).Text(Units) ] ];
+		[ SNew(SBox).WidthOverride(40.0f)[ SNew(STextBlock).Font(PBLSlate::Font(10)).Text(Units) ] ];
 }
 
-void SPBLMenuPanel::OnChanged(float NewValue, float* Target)
+void SPBLMenuPanel::OnChanged(float NewValue, float* Target, float Scale)
 {
-	if (!Target) { return; }
-	*Target = NewValue;
-	Settings()->SaveConfig();
-	// Скорости попадают в движение только через персонажа; чувствительность читается сама.
+	if (!Target || Scale <= 0.0f) { return; }
+	*Target = NewValue / Scale;
+	// Пишем в пользовательский сейв: проектный DefaultGame.ini в игре не записывается.
 	if (APBLPlayerController* PC = Controller.Get())
 	{
+		if (UGameInstance* GI = PC->GetGameInstance())
+		{
+			if (UPBLUserSettingsSubsystem* U = GI->GetSubsystem<UPBLUserSettingsSubsystem>()) { U->Capture(); }
+		}
+		// Скорости попадают в движение только через персонажа; чувствительность читается сама.
 		if (APBLCharacter* C = Cast<APBLCharacter>(PC->GetPawn())) { C->ApplyMoveSpeed(); }
 	}
 }
 
 FReply SPBLMenuPanel::OnReset()
 {
-	UPBLMovementSettings* S = Settings();
-	const UPBLMovementSettings* Def = GetDefault<UPBLMovementSettings>()->GetClass()->GetDefaultObject<UPBLMovementSettings>();
-	// Значения по умолчанию лежат в заголовке; сбрасываем только то, что меняется этим окном.
-	S->MaxWalkSpeed = 480.0f;
-	S->MaxSprintSpeed = 700.0f;
-	S->MaxCrouchSpeed = 160.0f;
-	S->MouseSensitivity = 2.0f;
-	(void)Def;
-	S->SaveConfig();
+	// Сброс - это забыть пользовательские правки, а не вписать сюда копию проектных чисел:
+	// иначе они разъедутся с DefaultGame.ini при первой же правке конфига.
 	if (APBLPlayerController* PC = Controller.Get())
 	{
+		if (UGameInstance* GI = PC->GetGameInstance())
+		{
+			if (UPBLUserSettingsSubsystem* U = GI->GetSubsystem<UPBLUserSettingsSubsystem>()) { U->ResetToProjectDefaults(); }
+		}
 		if (APBLCharacter* C = Cast<APBLCharacter>(PC->GetPawn())) { C->ApplyMoveSpeed(); }
 	}
 	return FReply::Handled();
@@ -150,10 +155,12 @@ FReply SPBLMenuPanel::OnClose()
 FText SPBLMenuPanel::GetSpeedHint() const
 {
 	const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>();
-	// В метрах в секунду понятнее: обычный шаг ~1.4 м/с, бег трусцой ~3, спринт ~7.
+	// Ориентиры, чтобы было с чем сверяться. Шаг человека ростом 180 см - около 75 см,
+	// при обычных 110 шагах в минуту это и даёт 5 км/ч.
 	return FText::FromString(FString::Printf(
-		TEXT("в метрах в секунду: ходьба %.1f, бег %.1f, присед %.1f  (для сравнения: шаг 1.4, бег трусцой 3, спринт 7)"),
-		S->MaxWalkSpeed / 100.0f, S->MaxSprintSpeed / 100.0f, S->MaxCrouchSpeed / 100.0f));
+		TEXT("Для сверки: пешком 5 км/ч, быстрым шагом 6.5, бег трусцой 10, бег 15, спринт 25 (предел человека около 37). ")
+		TEXT("Сейчас ходьба %.1f км/ч - это %.0f шагов в минуту при шаге 75 см (человек идёт примерно 110)."),
+		S->MaxWalkSpeed * KmH, S->MaxWalkSpeed / 75.0f * 60.0f));
 }
 
 #undef LOCTEXT_NAMESPACE

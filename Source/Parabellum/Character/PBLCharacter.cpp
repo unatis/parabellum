@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Character/PBLMovementSettings.h"
+#include "Player/PBLUserSettings.h"
 #include "Components/CapsuleComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -318,3 +319,42 @@ void APBLCharacter::Input_AimStop(const FInputActionValue&)
 		ApplyMoveSpeed();
 	}
 }
+
+// Тот же путь, что у окна настроек: поменять значение, сохранить, применить к движению.
+// Нужен, чтобы проверять сохранение между запусками без рук.
+static FAutoConsoleCommandWithWorldAndArgs CmdWalkSpeed(TEXT("pbl.Move.WalkSpeed"),
+	TEXT("Set walking speed in cm/s and save it; no argument just prints the current one"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		UPBLMovementSettings* S = GetMutableDefault<UPBLMovementSettings>();
+		if (Args.Num() > 0)
+		{
+			S->MaxWalkSpeed = FCString::Atof(*Args[0]);
+			if (UGameInstance* GI = World ? World->GetGameInstance() : nullptr)
+			{
+				if (UPBLUserSettingsSubsystem* U = GI->GetSubsystem<UPBLUserSettingsSubsystem>()) { U->Capture(); }
+			}
+			if (APBLCharacter* C = World ? Cast<APBLCharacter>(World->GetFirstPlayerController() ? World->GetFirstPlayerController()->GetPawn() : nullptr) : nullptr)
+			{
+				C->ApplyMoveSpeed();
+			}
+		}
+		UE_LOG(LogTemp, Display, TEXT("SETTINGS ходьба %.0f см/с, бег %.0f, присед %.0f, чувствительность %.2f"),
+			S->MaxWalkSpeed, S->MaxSprintSpeed, S->MaxCrouchSpeed, S->MouseSensitivity);
+	}));
+
+// Сброс пользовательских правок: та же кнопка, что в окне настроек.
+static FAutoConsoleCommandWithWorld CmdSettingsReset(TEXT("pbl.Move.Reset"),
+	TEXT("Forget user movement settings and go back to the project defaults"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		UGameInstance* GI = World ? World->GetGameInstance() : nullptr;
+		if (UPBLUserSettingsSubsystem* U = GI ? GI->GetSubsystem<UPBLUserSettingsSubsystem>() : nullptr)
+		{
+			U->ResetToProjectDefaults();
+			if (APBLCharacter* C = Cast<APBLCharacter>(World->GetFirstPlayerController() ? World->GetFirstPlayerController()->GetPawn() : nullptr))
+			{
+				C->ApplyMoveSpeed();
+			}
+		}
+	}));
