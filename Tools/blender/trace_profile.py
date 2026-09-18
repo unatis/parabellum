@@ -28,6 +28,8 @@ ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 PHOTO = ARGS[0] if ARGS else ""
 KNOWN_LENGTH_MM = float(ARGS[1]) if len(ARGS) > 1 else 210.0
 NAME = ARGS[2] if len(ARGS) > 2 else os.path.splitext(os.path.basename(PHOTO))[0]
+# Рамка поиска в долях кадра: x0 y0 x1 y1. Нужна, когда рядом лежит что-то ещё или фон пёстрый.
+BOX = [float(v) for v in ARGS[3:7]] if len(ARGS) >= 7 else None
 OUT = os.path.join(ROOT, "Import", "Reference", NAME)
 os.makedirs(OUT, exist_ok=True)
 
@@ -201,10 +203,26 @@ if not PHOTO or not os.path.exists(PHOTO):
 
 rgb_in, W, H = load_rgb(PHOTO)
 gray = rgb_in.mean(axis=2)
-mask = foreground(rgb_in)
+if BOX:
+    x0b, y0b, x1b, y1b = int(BOX[0] * W), int(BOX[1] * H), int(BOX[2] * W), int(BOX[3] * H)
+    keep = np.zeros((H, W), dtype=bool)
+    keep[y0b:y1b, x0b:x1b] = True
+    print(f"@@ рамка поиска {x0b},{y0b}..{x1b},{y1b}")
+else:
+    keep = np.ones((H, W), dtype=bool)
+
+mask = foreground(rgb_in) & keep
 print(f"@@ снимок {W}x{H}, передний план {100.0 * mask.mean():.1f}% кадра")
+raw_fg = mask.sum()
 mask = clean(mask)
 mask = largest_component(mask)
+
+# Признак негодного снимка: объект рассыпался на куски или занимает подозрительную долю кадра.
+share = mask.sum() / max(raw_fg, 1)
+if share < 0.8:
+    print(f"@@ ВНИМАНИЕ: крупнейший объект - только {100 * share:.0f}% переднего плана. Фон недостаточно")
+    print("@@ контрастен, объект распался на куски. Смотрите overlay.png: числам верить нельзя.")
+    print("@@ Помогает однотонный контрастный фон или рамка поиска четырьмя долями кадра.")
 
 top, bot = columns(mask)
 valid = np.flatnonzero(np.isfinite(top))
