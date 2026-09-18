@@ -63,8 +63,9 @@ public:
 	void StopFire();
 	/** Прицеливание через мушку (ПКМ): поза viewmodel плавно выдвигается вперёд и совмещает линию прицела с глазом. */
 	void SetAiming(bool bInAiming);
-	/** Живая подстройка позы прицеливания под модель (см). */
-	void SetAimNudge(const FVector& N) { AimNudge = N; }
+	/** Живая подстройка позы прицеливания под модель (см). Тик включаем принудительно:
+	    в покое оружие его выключает, и поправка иначе не доехала бы до трансформа. */
+	void SetAimNudge(const FVector& N) { AimNudge = N; SetActorTickEnabled(true); }
 	bool IsAiming() const { return bAiming; }
 	float GetAimAlpha() const { return AimAlpha; }
 	void StartReload();
