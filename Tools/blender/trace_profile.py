@@ -233,11 +233,13 @@ if valid.size < 20:
 a, b = longest_flat_run(top)
 if b - a > 30:
     xs = np.arange(a, b)
-    k, _ = np.polyfit(xs, top[a:b], 1)
+    k, b0 = np.polyfit(xs, top[a:b], 1)
     angle = -np.arctan(k)
+    flat_px = (a + b) / 2.0, k * (a + b) / 2.0 + b0
     print(f"@@ линия затвора: {b - a} px, наклон {np.degrees(np.arctan(k)):+.2f} град - выпрямляем")
 else:
     angle = 0.0
+    flat_px = None
     print("@@ ровного участка не нашлось, снимок принят как есть")
 
 cx, cy = W / 2.0, H / 2.0
@@ -262,6 +264,14 @@ def to_mm(p):
     return [round(float((p[0] - x0) * mm_per_px), 2), round(float(-(p[1] - y_ref) * mm_per_px), 2)]
 
 
+# Линия верха затвора - датум по высоте: модель считает от оси канала, а контур снят
+# от верхней точки объекта, и связать их больше нечем.
+slide_top_mm = None
+if flat_px is not None:
+    fx, fy = rotate_points(np.array([flat_px[0]]), np.array([flat_px[1]]), angle, cx, cy)
+    slide_top_mm = round(float(-(fy[0] - y_ref) * mm_per_px), 2)
+    print(f"@@ датум: линия верха затвора на {slide_top_mm:+.2f} мм от верхней точки")
+
 prof_top = simplify([to_mm(p) for p in pts_top], SIMPLIFY_MM)
 prof_bot = simplify([to_mm(p) for p in pts_bot], SIMPLIFY_MM)
 print(f"@@ контур: верх {len(pts_top)} -> {len(prof_top)} точек, низ {len(pts_bot)} -> {len(prof_bot)}")
@@ -270,6 +280,7 @@ with open(os.path.join(OUT, "profile.json"), "w", encoding="utf-8") as f:
     json.dump({"source": os.path.basename(PHOTO), "known_length_mm": KNOWN_LENGTH_MM,
                "mm_per_px": round(mm_per_px, 5), "rotation_deg": round(float(np.degrees(angle)), 3),
                "measured_height_mm": round(float(height_mm), 2),
+               "slide_top_mm": slide_top_mm,
                "note": "x от дульного среза назад отрицательный, y вниз от верхней точки отрицательный",
                "top": prof_top, "bottom": prof_bot}, f, indent=1, ensure_ascii=False)
 

@@ -65,6 +65,42 @@ bpy.context.scene.unit_settings.scale_length = 0.001   # 1 BU = 1 мм
 
 # Ось канала ствола на z=0, срез дула на x=0, оружие уходит назад по -x - как у Glock.
 BORE_Z = 0.0
+SLIDE_TOP_Z = BORE_Z + 14.0
+
+
+def load_traced_profile():
+    """
+    Контур, снятый с фотографии (Tools/blender/trace_profile.py). Даёт то, чего нет в ТТХ:
+    обвод затвора, скруглённую спусковую скобу, изгиб рукояти. Привязка по высоте - линия
+    верха затвора: контур снят от верхней точки объекта, модель считает от оси канала,
+    и связать их больше нечем.
+
+    Силуэт даёт только НАРУЖНУЮ границу. Где кончается затвор и начинается рамка, в нём
+    не написано - эта граница остаётся расчётной.
+    """
+    path = os.path.join(os.path.dirname(OUT), "Reference", "Colt1911_photo2", "profile.json")
+    if not os.path.exists(path):
+        print("@@ контура с фотографии нет, беру обводы из таблицы")
+        return None
+    with open(path, encoding="utf-8") as f:
+        d = json.load(f)
+    if d.get("slide_top_mm") is None:
+        print("@@ в контуре нет датума верха затвора - беру обводы из таблицы")
+        return None
+    dz = SLIDE_TOP_Z - d["slide_top_mm"]
+    print(f"@@ контур с фотографии {d['source']}: {len(d['top'])}+{len(d['bottom'])} точек, "
+          f"сдвиг по высоте {dz:+.2f} мм")
+    return {"top": [(x, y + dz) for x, y in d["top"]],
+            "bottom": [(x, y + dz) for x, y in d["bottom"]],
+            "source": d["source"], "height_mm": d["measured_height_mm"]}
+
+
+TRACED = load_traced_profile()
+
+
+def clip(pts, x_from, x_to):
+    """Точки контура в пределах участка, по возрастанию x (от хвоста к дулу)."""
+    return [(x, z) for x, z in pts if x_from <= x <= x_to]
 parts = {}
 bl = S["barrel_length"]
 
@@ -85,8 +121,14 @@ parts["BarrelLink"] = link
 # --- Затвор: профиль сбоку, выдавленный на ширину; вырезаны окно выброса, паз рамки, канал ---
 sl, sh = S["slide_length"], S["slide_height"]
 top, bot = BORE_Z + 14.0, BORE_Z - 10.0
-slide_profile = [(0, top - 3), (0, bot + 2), (-4, bot), (-sl + 6, bot), (-sl, bot + 5),
-                 (-sl, top - 4), (-sl + 6, top), (-4, top)]
+traced_top = clip(TRACED["top"], -sl, 0.0) if TRACED else []
+if len(traced_top) >= 6:
+    # Низ затвора остаётся расчётным - в силуэте его нет; верх идёт с фотографии.
+    slide_profile = [(0, bot + 2), (-4, bot), (-sl + 6, bot), (-sl, bot + 5)] + traced_top
+    print(f"@@ верх затвора: {len(traced_top)} точек с фотографии")
+else:
+    slide_profile = [(0, top - 3), (0, bot + 2), (-4, bot), (-sl + 6, bot), (-sl, bot + 5),
+                     (-sl, top - 4), (-sl + 6, top), (-4, top)]
 slide = L.profile_extrude("Slide", slide_profile, S["slide_width"])
 # Окно выброса над патронником, справа; вырез уходит ниже оси канала, иначе гильзе не выйти.
 L.boolean(slide, L.box("ejport", (46, 26, 18), (-bl + 19, 4, top - 7)))
@@ -137,13 +179,22 @@ GRIP_BOT_Z = TOP_Z - S["height_with_mag"]
 grip_top_x = -128.0
 grip_bot_z = GRIP_BOT_Z + 4.0
 dx = math.tan(ga) * abs(grip_bot_z - (BORE_Z - 30))
-frame_profile = [
-    (0, bot - 1), (0, bot - 10), (-56, bot - 10), (-62, bot - 26),
-    (-70, bot - 30), (-100, bot - 32), (-108, bot - 26), (-110, bot - 10),
-    (grip_top_x + 10, bot - 12), (grip_top_x + 10 - dx, grip_bot_z),
-    (grip_top_x - 30 - dx, grip_bot_z),
-    (-206, bot - 8), (-210, bot + 4), (-210, bot + 14), (-4, bot + 14),
-]
+traced_bot = clip(TRACED["bottom"], -S["overall_length"], 0.0) if TRACED else []
+if len(traced_bot) >= 10:
+    # Весь наружный низ - с фотографии: спусковая скоба, изгиб рукояти, донце магазина.
+    # Верх рамки под затвором в силуэт не попадает и остаётся расчётным, а вот хвостовик
+    # позади затвора виден - его тоже берём с фотографии, иначе рамка выходит глухой плитой.
+    tail = [p for p in TRACED["top"] if p[0] <= -sl]
+    frame_profile = [(0, bot + 14), (-sl, bot + 14)] + tail[::-1] + traced_bot
+    print(f"@@ низ рамки: {len(traced_bot)} точек с фотографии, хвостовик: {len(tail)}")
+else:
+    frame_profile = [
+        (0, bot - 1), (0, bot - 10), (-56, bot - 10), (-62, bot - 26),
+        (-70, bot - 30), (-100, bot - 32), (-108, bot - 26), (-110, bot - 10),
+        (grip_top_x + 10, bot - 12), (grip_top_x + 10 - dx, grip_bot_z),
+        (grip_top_x - 30 - dx, grip_bot_z),
+        (-206, bot - 8), (-210, bot + 4), (-210, bot + 14), (-4, bot + 14),
+    ]
 frame = L.profile_extrude("Frame", frame_profile, S["overall_width"] - 4.0)
 
 # Магазин единственный однорядный: у .45 два ряда не ставят, отсюда узкая рукоять.
@@ -271,7 +322,9 @@ documented = len(by_src.get("spec", [])) + len(by_src.get("blue", []))
 print(f"@@ --- data provenance: {documented}/{len(SPEC)} dimensions documented "
       f"({100.0 * documented / len(SPEC):.0f}%) ---")
 report["_provenance"] = {"sources": {k: v[1] for k, v in SPEC.items()}, "documented": documented,
-                         "total": len(SPEC), "completeness_pct": round(100.0 * documented / len(SPEC), 1)}
+                         "total": len(SPEC), "completeness_pct": round(100.0 * documented / len(SPEC), 1),
+                         "traced_contour": (TRACED or {}).get("source"),
+                         "traced_points": (len(TRACED["top"]) + len(TRACED["bottom"])) if TRACED else 0}
 
 # --- Неполная разборка 1911: она заметно отличается от глоковской ---
 report["_fieldstrip"] = [
