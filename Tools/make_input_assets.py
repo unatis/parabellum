@@ -19,6 +19,7 @@ ACTIONS = {
     "IA_Look":   unreal.InputActionValueType.AXIS2D,   # сырая дельта мыши, чувствительность в C++
     "IA_Jump":   unreal.InputActionValueType.BOOLEAN,
     "IA_Crouch": unreal.InputActionValueType.BOOLEAN,
+    "IA_Sprint": unreal.InputActionValueType.BOOLEAN,
     "IA_Fire":   unreal.InputActionValueType.BOOLEAN,
     "IA_Reload": unreal.InputActionValueType.BOOLEAN,
     "IA_Aim":    unreal.InputActionValueType.BOOLEAN,
@@ -36,6 +37,7 @@ MAPPINGS = [
     ("IA_Look", "Mouse2D", []),
     ("IA_Jump", "SpaceBar", []),
     ("IA_Crouch", "LeftControl", []),
+    ("IA_Sprint", "LeftShift", []),
     ("IA_Fire", "LeftMouseButton", []),
     ("IA_Reload", "R", []),
     ("IA_Aim", "RightMouseButton", []),

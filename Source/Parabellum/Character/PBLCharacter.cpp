@@ -186,6 +186,12 @@ void APBLCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		Input->BindAction(IA, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 		++Bound;
 	}
+	if (UInputAction* IA = SprintAction.LoadSynchronous())
+	{
+		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_SprintStart);
+		Input->BindAction(IA, ETriggerEvent::Completed, this, &APBLCharacter::Input_SprintStop);
+		++Bound;
+	}
 	if (UInputAction* IA = CrouchAction.LoadSynchronous())
 	{
 		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_CrouchStart);
@@ -207,8 +213,9 @@ void APBLCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		Input->BindAction(IA, ETriggerEvent::Started, this, &APBLCharacter::Input_Reload);
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("PBL: input bound %d/4 actions (Move='%s' Look='%s' Jump='%s' Crouch='%s')"),
-		Bound, *MoveAction.ToString(), *LookAction.ToString(), *JumpAction.ToString(), *CrouchAction.ToString());
+	UE_LOG(LogTemp, Display, TEXT("PBL: input bound %d/5 actions (Move='%s' Look='%s' Jump='%s' Crouch='%s' Sprint='%s')"),
+		Bound, *MoveAction.ToString(), *LookAction.ToString(), *JumpAction.ToString(),
+		*CrouchAction.ToString(), *SprintAction.ToString());
 	if (Bound < 4)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("PBL: часть действий не загрузилась — проверь пути в DefaultGame.ini и Content/Input"));
@@ -244,6 +251,31 @@ void APBLCharacter::Input_Look(const FInputActionValue& Value)
 
 }
 
+void APBLCharacter::Input_SprintStart()
+{
+	bSprinting = true;
+	ApplyMoveSpeed();
+}
+
+void APBLCharacter::Input_SprintStop()
+{
+	bSprinting = false;
+	ApplyMoveSpeed();
+}
+
+void APBLCharacter::ApplyMoveSpeed()
+{
+	UCharacterMovementComponent* Move = GetCharacterMovement();
+	if (!Move) { return; }
+	const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>();
+	// Прицеливание главнее бега: с вытянутым оружием не бегают, поэтому в прицеле бег не работает.
+	const bool bAiming = Weapon && Weapon->GetAimAlpha() > 0.01f;
+	const float Base = (bSprinting && !bAiming) ? S->MaxSprintSpeed : S->MaxWalkSpeed;
+	Move->MaxWalkSpeed = bAiming ? S->MaxWalkSpeed * S->AimSpeedScale : Base;
+	Move->MaxWalkSpeedCrouched = bAiming ? S->MaxCrouchSpeed * S->AimSpeedScale : S->MaxCrouchSpeed;
+	Move->MaxAcceleration = S->MaxAcceleration;
+}
+
 void APBLCharacter::Input_CrouchStart()
 {
 	Crouch();
@@ -274,7 +306,7 @@ void APBLCharacter::Input_AimStart(const FInputActionValue&)
 	if (Weapon) { Weapon->SetAiming(true); }
 	if (const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>())
 	{
-		if (UCharacterMovementComponent* Move = GetCharacterMovement()) { Move->MaxWalkSpeed = S->MaxWalkSpeed * S->AimSpeedScale; Move->MaxWalkSpeedCrouched = S->MaxCrouchSpeed * S->AimSpeedScale; }
+		ApplyMoveSpeed();
 	}
 }
 
@@ -283,6 +315,6 @@ void APBLCharacter::Input_AimStop(const FInputActionValue&)
 	if (Weapon) { Weapon->SetAiming(false); }
 	if (const UPBLMovementSettings* S = GetDefault<UPBLMovementSettings>())
 	{
-		if (UCharacterMovementComponent* Move = GetCharacterMovement()) { Move->MaxWalkSpeed = S->MaxWalkSpeed; Move->MaxWalkSpeedCrouched = S->MaxCrouchSpeed; }
+		ApplyMoveSpeed();
 	}
 }

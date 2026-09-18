@@ -8,6 +8,8 @@ class UCameraComponent;
 class UPBLVisionComponent;
 class APBLWeapon;
 class UInputAction;
+
+// Бег включается удержанием и гаснет сам, когда игрок выходит в прицел.
 struct FInputActionValue;
 
 /**
@@ -31,6 +33,11 @@ class PARABELLUM_API APBLCharacter : public ACharacter
 public:
 	APBLCharacter();
 
+	/** Одно место, где ставятся скорости движения: бег, присед и прицел решают тут,
+	    а не в трёх разных местах, как было. */
+	void ApplyMoveSpeed();
+	bool IsSprinting() const { return bSprinting; }
+
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 	APBLWeapon* GetWeapon() const { return Weapon; }
 
@@ -53,6 +60,9 @@ protected:
 	void Input_Look(const FInputActionValue& Value);
 	void Input_CrouchStart();
 	void Input_CrouchStop();
+	void Input_SprintStart();
+	void Input_SprintStop();
+	bool bSprinting = false;
 	void Input_FireStart();
 	void Input_FireStop();
 	void Input_AimStart(const struct FInputActionValue& Value);
@@ -114,6 +124,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
 	TSoftObjectPtr<UInputAction> CrouchAction;
+
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Input")
+	TSoftObjectPtr<UInputAction> SprintAction;
 
 	UPROPERTY(EditDefaultsOnly, Config, Category = "Parabellum|Input")
 	TSoftObjectPtr<UInputAction> FireAction;

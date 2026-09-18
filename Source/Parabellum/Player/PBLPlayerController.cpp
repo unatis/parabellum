@@ -2,6 +2,7 @@
 
 #include "EngineUtils.h"
 #include "Collection/PBLCollection.h"
+#include "UI/SPBLMenuPanel.h"
 #include "UI/SPBLShopPanel.h"
 #include "Ballistics/PBLWeaponDataSubsystem.h"
 #include "Engine/GameInstance.h"
@@ -121,6 +122,8 @@ void APBLPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::RightBracket, IE_Pressed, this, &APBLPlayerController::BenchSpecimenNext);
 		InputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &APBLPlayerController::BenchSpecimenPrev);
 		InputComponent->BindKey(EKeys::F4, IE_Pressed, this, &APBLPlayerController::ToggleShopPanel);
+		// Escape ловим сами: иначе он уходит движку и в отдельном окне просто закрывает игру.
+		InputComponent->BindKey(EKeys::Escape, IE_Pressed, this, &APBLPlayerController::ToggleMenuPanel);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &APBLPlayerController::BenchDragStart);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &APBLPlayerController::BenchDragStop);
 	}
@@ -284,6 +287,40 @@ void APBLPlayerController::ToggleShopPanel()
 	SetInputMode(Mode);
 	bShowMouseCursor = true;
 }
+
+void APBLPlayerController::ToggleMenuPanel()
+{
+	if (!GEngine || !GEngine->GameViewport) { return; }
+	if (MenuPanel.IsValid())
+	{
+		GEngine->GameViewport->RemoveViewportWidgetContent(MenuPanel.ToSharedRef());
+		MenuPanel.Reset();
+		if (bBenchMode) { SetInputMode(FInputModeGameAndUI()); }
+		else { SetInputMode(FInputModeGameOnly()); }
+		bShowMouseCursor = bBenchMode;
+		return;
+	}
+	TSharedRef<SWidget> Panel = SNew(SConstraintCanvas)
+		+ SConstraintCanvas::Slot().Anchors(FAnchors(0.5f, 0.5f)).Alignment(FVector2D(0.5f, 0.5f)).AutoSize(true)
+		[ SNew(SPBLMenuPanel).Controller(this) ];
+	MenuPanel = Panel;
+	GEngine->GameViewport->AddViewportWidgetContent(Panel, 120);
+	UE_LOG(LogTemp, Display, TEXT("PBL: меню открыто"));
+	FInputModeGameAndUI Mode;
+	Mode.SetHideCursorDuringCapture(false);
+	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(Mode);
+	bShowMouseCursor = true;
+}
+
+static FAutoConsoleCommandWithWorld CmdMenuPanel(TEXT("pbl.Menu"), TEXT("Toggle the escape menu"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (APBLPlayerController* PC = World ? Cast<APBLPlayerController>(World->GetFirstPlayerController()) : nullptr)
+		{
+			PC->ToggleMenuPanel();
+		}
+	}));
 
 static FAutoConsoleCommandWithWorld CmdShopPanel(TEXT("pbl.Shop.Panel"), TEXT("Toggle the shop window (same as F4)"),
 	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)

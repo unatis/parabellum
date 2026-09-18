@@ -60,6 +60,8 @@ public:
 	void BenchSpecimenNext() { BenchSpecimen(1); }
 	void BenchSpecimenPrev() { BenchSpecimen(-1); }
 	void ToggleShopPanel();
+	/** Меню по Escape: настройки управления и выход. */
+	void ToggleMenuPanel();
 
 private:
 	void UpdateBenchCamera(float Blend);
@@ -69,6 +71,7 @@ public:
 private:
 	TSharedPtr<class SWidget> TuningPanel;
 	TSharedPtr<class SWidget> ShopPanel;
+	TSharedPtr<class SWidget> MenuPanel;
 	TWeakObjectPtr<class APBLWeaponBench> Bench;
 	TWeakObjectPtr<class ACameraActor> BenchCamera;
 	bool bBenchMode = false;
