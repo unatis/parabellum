@@ -169,6 +169,27 @@ def loft(name, rings, cap=True):
     return ob
 
 
+def fix_normals(ob):
+    """Нормали наружу. Лофт по кольцам может выйти вывернутым, и булев оператор на таком
+    теле даёт мусор вместо разреза - молча, без ошибки."""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(ob.data)
+    bm.free()
+    return ob
+
+
+def copy_of(ob, name):
+    """Независимая копия тела: оболочку режут несколько раз, а boolean съедает резак."""
+    new = ob.copy()
+    new.data = ob.data.copy()
+    new.name = name
+    new.data.name = name
+    bpy.context.scene.collection.objects.link(new)
+    return new
+
+
 def bevel(ob, width=0.4, segments=2, angle_deg=35.0):
     """Фаски по рёбрам: без них металл и пластик читаются как картон - блик по кромке даёт 'дорогой' вид."""
     m = ob.modifiers.new("bevel", 'BEVEL')

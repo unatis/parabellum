@@ -118,6 +118,21 @@ for px in range(w):
 print(f"@@ силуэт с фотографии: {photo.sum()} px")
 
 # --- Мера расхождения ---
+# Контур с фотографии - это ОБВОД: он заливается между верхней и нижней границей и про дырки
+# внутри детали не знает. У оружия дырки настоящие - окно спусковой скобы прежде всего. Сравнивать
+# надо обвод с обводом, иначе правильно прорезанная скоба считается недостачей материала и мера
+# наказывает за верную работу. Поэтому силуэт модели тоже приводится к обводу; сырое число
+# печатается рядом, чтобы разница была видна.
+raw_model = model.copy()
+model = np.zeros_like(raw_model)
+for px in range(w):
+    col = np.flatnonzero(raw_model[:, px])
+    if col.size:
+        model[col[0]:col[-1] + 1, px] = True
+holes = int(model.sum() - raw_model.sum())
+print(f"@@ обвод модели: {model.sum()} px, из них проёмов внутри детали {holes} px "
+      f"({100.0 * holes / max(model.sum(), 1):.1f}%)")
+
 inter = (model & photo).sum()
 union = (model | photo).sum()
 iou = inter / max(union, 1)
