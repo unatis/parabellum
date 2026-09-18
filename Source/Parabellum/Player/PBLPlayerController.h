@@ -55,6 +55,11 @@ public:
 	void BenchFire();
 	void BenchSlowMo();
 	void BenchCutaway();
+	/** Следующий/предыдущий образец коллекции на стенде. */
+	void BenchSpecimen(int32 Direction);
+	void BenchSpecimenNext() { BenchSpecimen(1); }
+	void BenchSpecimenPrev() { BenchSpecimen(-1); }
+	void ToggleShopPanel();
 
 private:
 	void UpdateBenchCamera(float Blend);
@@ -63,6 +68,7 @@ public:
 
 private:
 	TSharedPtr<class SWidget> TuningPanel;
+	TSharedPtr<class SWidget> ShopPanel;
 	TWeakObjectPtr<class APBLWeaponBench> Bench;
 	TWeakObjectPtr<class ACameraActor> BenchCamera;
 	bool bBenchMode = false;

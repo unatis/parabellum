@@ -130,6 +130,31 @@ struct FPBLAmmoLayout
 	bool IsValid() const { return Capacity > 0 && !RoundMesh.IsNone(); }
 };
 
+/**
+ * Позиция витрины (Content/Data/Catalogue.csv): что можно купить в коллекцию.
+ * Цена - во внутренней валюте; настоящих платежей в проекте нет.
+ */
+USTRUCT(BlueprintType)
+struct FPBLCatalogueEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FName Weapon;
+	UPROPERTY() FName Generation;
+	UPROPERTY() FString DisplayName;
+	UPROPERTY() FName Cartridge;
+	UPROPERTY() int32 Price = 0;
+	UPROPERTY() int32 Year = 0;
+	UPROPERTY() FString Country;
+	/** Папка с деталями для оружейки; пусто - модели ещё нет. */
+	UPROPERTY() FString PartsPath;
+	/** Available - можно купить и разглядывать; Soon - в таблицах есть, модели нет. */
+	UPROPERTY() FName Status;
+	UPROPERTY() FString Description;
+
+	bool IsAvailable() const { return Status == TEXT("Available") && !PartsPath.IsEmpty(); }
+};
+
 /** Материал среды (Content/Data/Materials.csv). Пока одна модель - Понселе для мягких сред (гель, вода, ткани). */
 USTRUCT(BlueprintType)
 struct FPBLMaterialData

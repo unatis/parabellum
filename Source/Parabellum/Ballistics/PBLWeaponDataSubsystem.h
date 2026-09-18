@@ -29,6 +29,12 @@ public:
 	const TArray<FPBLWeaponPartStep>& AllPartSteps() const { return PartSteps_; }
 	/** Раскладка боеприпаса образца (AmmoLayout.csv); nullptr, если её нет. */
 	const FPBLAmmoLayout* FindAmmoLayout(FName Weapon) const { return AmmoLayouts.Find(Weapon); }
+	/** Витрина магазина (Catalogue.csv), в порядке файла. */
+	const TArray<FPBLCatalogueEntry>& Catalogue() const { return Catalogue_; }
+	const FPBLCatalogueEntry* FindCatalogue(FName Weapon) const
+	{
+		return Catalogue_.FindByPredicate([Weapon](const FPBLCatalogueEntry& E) { return E.Weapon == Weapon; });
+	}
 	/** Слои части тела (BodyLayers.csv), в порядке прохождения спереди назад; nullptr если части нет. */
 	const TArray<FPBLBodyLayer>* FindBodyPart(FName Part) const { return BodyParts.Find(Part); }
 	const TMap<FName, TArray<FPBLBodyLayer>>& AllBodyParts() const { return BodyParts; }
@@ -48,4 +54,5 @@ private:
 	TMap<FName, float> BodyPartThickness_m;
 	TArray<FPBLWeaponPartStep> PartSteps_;
 	TMap<FName, FPBLAmmoLayout> AmmoLayouts;
+	TArray<FPBLCatalogueEntry> Catalogue_;
 };

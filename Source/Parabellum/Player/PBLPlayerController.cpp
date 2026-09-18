@@ -1,6 +1,10 @@
 #include "Player/PBLPlayerController.h"
 
 #include "EngineUtils.h"
+#include "Collection/PBLCollection.h"
+#include "UI/SPBLShopPanel.h"
+#include "Ballistics/PBLWeaponDataSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Range/PBLWeaponBench.h"
 
 #include "Camera/CameraActor.h"
@@ -114,6 +118,9 @@ void APBLPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::F, IE_Pressed, this, &APBLPlayerController::BenchFire);
 		InputComponent->BindKey(EKeys::G, IE_Pressed, this, &APBLPlayerController::BenchSlowMo);
 		InputComponent->BindKey(EKeys::C, IE_Pressed, this, &APBLPlayerController::BenchCutaway);
+		InputComponent->BindKey(EKeys::RightBracket, IE_Pressed, this, &APBLPlayerController::BenchSpecimenNext);
+		InputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &APBLPlayerController::BenchSpecimenPrev);
+		InputComponent->BindKey(EKeys::F4, IE_Pressed, this, &APBLPlayerController::ToggleShopPanel);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &APBLPlayerController::BenchDragStart);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &APBLPlayerController::BenchDragStop);
 	}
@@ -252,6 +259,41 @@ void APBLPlayerController::ToggleTuningPanel()
 	bShowMouseCursor = true;
 }
 
+void APBLPlayerController::ToggleShopPanel()
+{
+	if (!GEngine || !GEngine->GameViewport) { return; }
+	if (ShopPanel.IsValid())
+	{
+		GEngine->GameViewport->RemoveViewportWidgetContent(ShopPanel.ToSharedRef());
+		ShopPanel.Reset();
+		// В оружейке курсор нужен и после закрытия магазина, в игре - нет.
+		if (bBenchMode) { SetInputMode(FInputModeGameAndUI()); }
+		else { SetInputMode(FInputModeGameOnly()); }
+		bShowMouseCursor = bBenchMode;
+		return;
+	}
+	TSharedRef<SWidget> Panel = SNew(SConstraintCanvas)
+		+ SConstraintCanvas::Slot().Anchors(FAnchors(0.5f, 0.5f)).Alignment(FVector2D(0.5f, 0.5f)).AutoSize(true)
+		[ SNew(SPBLShopPanel).Controller(this) ];
+	ShopPanel = Panel;
+	GEngine->GameViewport->AddViewportWidgetContent(Panel, 110);
+	UE_LOG(LogTemp, Display, TEXT("PBL: магазин открыт"));
+	FInputModeGameAndUI Mode;
+	Mode.SetHideCursorDuringCapture(false);
+	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(Mode);
+	bShowMouseCursor = true;
+}
+
+static FAutoConsoleCommandWithWorld CmdShopPanel(TEXT("pbl.Shop.Panel"), TEXT("Toggle the shop window (same as F4)"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (APBLPlayerController* PC = World ? Cast<APBLPlayerController>(World->GetFirstPlayerController()) : nullptr)
+		{
+			PC->ToggleShopPanel();
+		}
+	}));
+
 static FAutoConsoleCommandWithWorld CmdTuning(TEXT("pbl.Tuning"), TEXT("Toggle the weapon tuning panel (same as F2)"),
 	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
 	{
@@ -273,6 +315,8 @@ void APBLPlayerController::ToggleBench()
 	bBenchMode = !bBenchMode;
 	if (bBenchMode)
 	{
+		// Стенд показывает то, что куплено: список образцов ведёт коллекция, а не уровень.
+		BenchSpecimen(0);
 		if (!BenchCamera.IsValid())
 		{
 			BenchCamera = GetWorld()->SpawnActor<ACameraActor>(B->GetActorLocation(), FRotator::ZeroRotator);
@@ -484,4 +528,73 @@ static FAutoConsoleCommandWithWorld CmdBenchCutaway(
 	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W)
 	{
 		if (APBLPlayerController* PC = W ? Cast<APBLPlayerController>(W->GetFirstPlayerController()) : nullptr) { PC->BenchCutaway(); }
+	}));
+
+// ---------------------------------------------------------------------------------------------
+// Коллекция: какой образец стоит на стенде, и магазин, где образцы покупаются.
+
+void APBLPlayerController::BenchSpecimen(int32 Direction)
+{
+	UPBLCollectionSubsystem* Coll = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPBLCollectionSubsystem>() : nullptr;
+	UPBLWeaponDataSubsystem* Data = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
+	APBLWeaponBench* B = Bench.Get();
+	if (!Coll || !Data || !B) { return; }
+
+	const FName Want = (Direction == 0) ? Coll->Active() : Coll->NextOwned(Direction);
+	if (Want.IsNone())
+	{
+		B->SetSpecimen(NAME_None, NAME_None, FString());
+		return;
+	}
+	Coll->SetActive(Want);
+	const FPBLCatalogueEntry* E = Data->FindCatalogue(Want);
+	if (!E) { return; }
+	B->SetSpecimen(E->Weapon, E->Generation, E->PartsPath);
+	UE_LOG(LogTemp, Display, TEXT("PBL Bench: %s (%d из %d в коллекции)"),
+		*E->DisplayName, Coll->Owned().IndexOfByKey(Want) + 1, Coll->Owned().Num());
+}
+
+static FAutoConsoleCommandWithWorld CmdShop(
+	TEXT("pbl.Shop"),
+	TEXT("List the catalogue: what can be bought into the collection"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W)
+	{
+		UGameInstance* GI = W ? W->GetGameInstance() : nullptr;
+		UPBLWeaponDataSubsystem* Data = GI ? GI->GetSubsystem<UPBLWeaponDataSubsystem>() : nullptr;
+		UPBLCollectionSubsystem* Coll = GI ? GI->GetSubsystem<UPBLCollectionSubsystem>() : nullptr;
+		if (!Data || !Coll) { return; }
+		UE_LOG(LogTemp, Display, TEXT("SHOP: счёт %d, в коллекции %d"), Coll->Balance(), Coll->Owned().Num());
+		for (const FPBLCatalogueEntry& E : Data->Catalogue())
+		{
+			const TCHAR* State = Coll->IsOwned(E.Weapon) ? TEXT("КУПЛЕН")
+				: (E.IsAvailable() ? TEXT("в продаже") : TEXT("модели нет"));
+			UE_LOG(LogTemp, Display, TEXT("SHOP  %-18s %-22s %4d г, %-8s %-14s %6d  %s"),
+				*E.Weapon.ToString(), *E.DisplayName, E.Year, *E.Country, *E.Cartridge.ToString(), E.Price, State);
+		}
+	}));
+
+static FAutoConsoleCommandWithWorldAndArgs CmdShopBuy(
+	TEXT("pbl.Shop.Buy"),
+	TEXT("Buy a specimen into the collection: pbl.Shop.Buy <weapon>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W)
+	{
+		UGameInstance* GI = W ? W->GetGameInstance() : nullptr;
+		UPBLCollectionSubsystem* Coll = GI ? GI->GetSubsystem<UPBLCollectionSubsystem>() : nullptr;
+		if (!Coll || Args.Num() < 1) { UE_LOG(LogTemp, Warning, TEXT("usage: pbl.Shop.Buy <weapon>")); return; }
+		FString Reason;
+		const bool bOk = Coll->Buy(FName(*Args[0]), Reason);
+		UE_LOG(LogTemp, Display, TEXT("SHOP %s: %s"), bOk ? TEXT("OK") : TEXT("отказ"), *Reason);
+	}));
+
+static FAutoConsoleCommandWithWorld CmdCollection(
+	TEXT("pbl.Collection"),
+	TEXT("List the specimens owned by the player"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* W)
+	{
+		UGameInstance* GI = W ? W->GetGameInstance() : nullptr;
+		UPBLCollectionSubsystem* Coll = GI ? GI->GetSubsystem<UPBLCollectionSubsystem>() : nullptr;
+		if (!Coll) { return; }
+		UE_LOG(LogTemp, Display, TEXT("COLLECTION: %d образцов, счёт %d, на стенде %s"),
+			Coll->Owned().Num(), Coll->Balance(), *Coll->Active().ToString());
+		for (const FName& N : Coll->Owned()) { UE_LOG(LogTemp, Display, TEXT("COLLECTION  %s"), *N.ToString()); }
 	}));

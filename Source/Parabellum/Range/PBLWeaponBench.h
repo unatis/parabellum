@@ -53,6 +53,9 @@ public:
 	void CycleSlowMotion();
 	/** Разрез: спрятать наружные детали, чтобы видеть механизм и боеприпас внутри. */
 	void ToggleCutaway();
+	/** Поставить на стенд другой образец из коллекции. Пустое имя - убрать всё со стенда. */
+	void SetSpecimen(FName Weapon, FName Gen, const FString& Path);
+	FName GetWeaponName() const { return WeaponName; }
 	/** Остановить цикл на заданной миллисекунде от выстрела и держать позу. */
 	void FreezeCycle(float Milliseconds);
 	/** Задать замедление показа напрямую. */

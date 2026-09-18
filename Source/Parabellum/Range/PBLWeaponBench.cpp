@@ -22,9 +22,10 @@ APBLWeaponBench::APBLWeaponBench()
 void APBLWeaponBench::BeginPlay()
 {
 	Super::BeginPlay();
-	BuildParts();
-	BuildAmmo();
-	RefreshTargets();
+	// Заранее ничего не собираем: на стенде стоит только купленное. Образец ставит контроллер
+	// при входе в оружейку - см. APBLPlayerController::BenchSpecimen.
+	WeaponName = NAME_None;
+	Message = TEXT("коллекция пуста - купите образец в магазине (F4)");
 }
 
 void APBLWeaponBench::BuildParts()
@@ -482,6 +483,40 @@ FString APBLWeaponBench::GetAmmoLine() const
 	if (Ammo.Capacity <= 0) { return FString(); }
 	return FString::Printf(TEXT("магазин %d из %d, патронник %s"), RoundsInMag, Ammo.Capacity,
 		bChambered ? TEXT("снаряжён") : TEXT("пуст"));
+}
+
+void APBLWeaponBench::SetSpecimen(FName Weapon, FName Gen, const FString& Path)
+{
+	if (Weapon == WeaponName && PartComps.Num() > 0) { return; }
+	// Снимаем со стенда всё, что стояло: детали, патроны в магазине и патрон в патроннике.
+	for (const auto& It : PartComps) { if (It.Value) { It.Value->DestroyComponent(); } }
+	PartComps.Empty();
+	for (UStaticMeshComponent* C : MagRounds) { if (C) { C->DestroyComponent(); } }
+	MagRounds.Empty();
+	MagRoundBase.Empty();
+	if (ChamberRound) { ChamberRound->DestroyComponent(); ChamberRound = nullptr; }
+
+	WeaponName = Weapon;
+	Generation = Gen;
+	PartsPath = Path;
+	Step = 0;
+	Hovered = NAME_None;
+	bCutaway = false;
+	Cycle = FPBLCycleState();
+	Ammo = FPBLAmmoLayout();
+	RoundsInMag = 0;
+	bChambered = true;
+	Steps.Reset();
+	TargetOffset.Reset();
+	if (Weapon.IsNone() || Path.IsEmpty())
+	{
+		Message = TEXT("коллекция пуста - купите образец в магазине (F4)");
+		return;
+	}
+	BuildParts();
+	BuildAmmo();
+	RefreshTargets();
+	Message = FString::Printf(TEXT("на стенде: %s %s"), *Weapon.ToString(), *Gen.ToString());
 }
 
 void APBLWeaponBench::ToggleCutaway()

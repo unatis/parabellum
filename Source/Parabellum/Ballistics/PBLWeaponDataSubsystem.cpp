@@ -230,6 +230,26 @@ void UPBLWeaponDataSubsystem::Reload()
 		}
 	}
 
+	Rows.Reset();
+	if (ReadCsv(Dir / TEXT("Catalogue.csv"), Rows))
+	{
+		for (const auto& R : Rows)
+		{
+			FPBLCatalogueEntry E;
+			E.Weapon = FName(*R.FindRef(TEXT("Weapon")));
+			E.Generation = FName(*R.FindRef(TEXT("Generation")));
+			E.DisplayName = R.FindRef(TEXT("DisplayName"));
+			E.Cartridge = FName(*R.FindRef(TEXT("Cartridge")));
+			E.Price = FCString::Atoi(*R.FindRef(TEXT("Price")));
+			E.Year = FCString::Atoi(*R.FindRef(TEXT("Year")));
+			E.Country = R.FindRef(TEXT("Country"));
+			E.PartsPath = R.FindRef(TEXT("PartsPath"));
+			E.Status = FName(*R.FindRef(TEXT("Status")));
+			E.Description = R.FindRef(TEXT("Description"));
+			if (!E.Weapon.IsNone()) { Catalogue_.Add(E); }
+		}
+	}
+
 	UE_LOG(LogTemp, Display, TEXT("PBL Data: %d cartridges, %d firearms, %d materials, %d gel references, %d body parts, %d part steps, %d ammo layouts from %s"),
 		Cartridges.Num(), Firearms.Num(), Materials.Num(), References.Num(), BodyParts.Num(), PartSteps_.Num(), AmmoLayouts.Num(), *Dir);
 }
