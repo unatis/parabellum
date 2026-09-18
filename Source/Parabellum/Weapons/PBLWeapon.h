@@ -187,6 +187,11 @@ protected:
 	float AimAlpha = 0.0f;
 	/** Текущая поза viewmodel (бедро/прицел + отдача). */
 	void UpdateViewTransform();
+	/** Поза прицеливания: положение и поворот, при которых линия прицеливания проходит через глаз. */
+	void ComputeAimPose(FVector& OutLoc, FQuat& OutRot) const;
+public:
+	void DebugAimPose(FVector& OutLoc, FQuat& OutRot) const { ComputeAimPose(OutLoc, OutRot); }
+private:
 	bool bRecoilTickActive = false;
 	FPBLShotReport LastReport;
 	float LastReportTime = -1000.0f;
@@ -244,8 +249,10 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector ViewOffset = FVector(28.0f, 12.0f, -14.0f);
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FRotator ViewRotation = FRotator(0.0f, 0.0f, 0.0f);
 	/** Прицеливание: смещение и доворот viewmodel относительно позы от бедра при полном прицеле (координаты камеры: вперёд, вправо, вверх). */
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector AimOffset = FVector(6.0f, -6.0f, 1.0f);
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FRotator AimRotation = FRotator(0.0f, 0.0f, 0.0f);
+	/** Насколько вынести оружие вперёд относительно позы от бедра при прицеливании, см. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float AimForward_cm = 4.0f;
+	/** Поправка на неточность модели: если у неё мушка не на высоте прицельной линии. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") FVector AimNudge = FVector::ZeroVector;
 	/** Время выхода в прицел, с (реальная вскидка пистолета ~0.2 с). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Parabellum|Weapon") float AimTime = 0.18f;
 	/** Ось канала ствола в локальных координатах меша (риг рук: +Y; одиночная модель Glock: +X). Стрельба от бедра идёт вдоль неё. */

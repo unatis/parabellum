@@ -249,18 +249,54 @@ void APBLWeapon::Tick(float DeltaSeconds)
 	if (!Recoil.IsActive() && FMath::IsNearlyEqual(AimAlpha, Target)) { SetActorTickEnabled(false); }
 }
 
+void APBLWeapon::ComputeAimPose(FVector& OutLoc, FQuat& OutRot) const
+{
+	// Прицеливание - это не подобранное смещение, а геометрия: глаз, целик и мушка на одной прямой.
+	// Мушка и целик стоят на высоте прицельной линии над осью канала (SightHeight из Firearms.csv),
+	// значит в прицеливании ось канала должна пройти ровно на эту высоту НИЖЕ линии взгляда,
+	// а сама ось - параллельно взгляду. Отсюда поза считается однозначно.
+	// Дуло и ось канала берём ровно тем же путём, что стрельба от бедра, и переводим в систему
+	// актора через мировые трансформы. Считать их от относительного трансформа меша нельзя:
+	// у рига рук смещение в полтора метра сидит в костях, а не в трансформе компонента,
+	// и поза получалась построенной вокруг несуществующего дула.
+	const FTransform ActorT = GetActorTransform();
+	const FVector BoreActor = ActorT.InverseTransformVectorNoScale(
+		Mesh->GetComponentTransform().TransformVectorNoScale(BoreAxisLocal)).GetSafeNormal();
+	const FVector MuzzleActor = ActorT.InverseTransformPosition(GetMuzzleLocation());
+
+	// Поворот строим НЕ с нуля, а поправкой к позе от бедра. Если считать его от оси модели
+	// напрямую, минимальный поворот может развернуть оружие как угодно (ось ствола в системе
+	// актора не обязана смотреть вперёд) - именно так оно и улетело из кадра при первой попытке.
+	const FQuat HipRot = ViewRotation.Quaternion();
+	const FVector BoreAtHip = HipRot.RotateVector(BoreActor).GetSafeNormal();
+	OutRot = FQuat::FindBetweenNormals(BoreAtHip, FVector::ForwardVector) * HipRot;
+
+	const FVector M = OutRot.RotateVector(MuzzleActor);
+	const float SightHeight_cm = (bHasData ? Firearm.SightHeight_m : 0.020f) * 100.0f;
+	// Вдоль взгляда держим ту же дистанцию, что и от бедра, плюс небольшой вынос вперёд;
+	// поперёк - так, чтобы линия прицеливания (на высоте прицельной линии над осью канала)
+	// прошла ровно через глаз. Тогда мушка садится в прорезь целика сама.
+	OutLoc = FVector(ViewOffset.X + AimForward_cm, -M.Y, -SightHeight_cm - M.Z) + AimNudge;
+}
+
 void APBLWeapon::UpdateViewTransform()
 {
 	const UPBLRecoilSettings& RS = UPBLRecoilSettings::Get();
 	// Поза = бедро + (прицел - бедро)·alpha (плавная кривая), плюс визуальная отдача: откат назад и задир сильнее камеры.
 	const float A = FMath::SmoothStep(0.0f, 1.0f, AimAlpha);
-	// Довороты (прицел, визуальная отдача) - вокруг глаза (точки крепления к камере), а не вокруг корня рига,
-	// который у рига рук лежит на 1.5 м ниже: иначе 3° превращаются в 8 см сдвига.
-	const FRotator Delta = AimRotation * A + FRotator(FMath::RadiansToDegrees(Recoil.Pitch - Recoil.PitchRest) * RS.VisualPitchScale, 0.0f, 0.0f);
-	const FQuat Q = Delta.Quaternion();
-	const FVector BaseLoc = ViewOffset + AimOffset * A - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f);
-	SetActorRelativeLocation(Q.RotateVector(BaseLoc));
-	SetActorRelativeRotation((Q * ViewRotation.Quaternion()).Rotator());
+	FVector AimLoc;
+	FQuat AimRot;
+	ComputeAimPose(AimLoc, AimRot);
+
+	// Визуальная отдача крутится вокруг глаза (точки крепления к камере), а не вокруг корня рига,
+	// который у рига рук лежит на 1.5 м ниже: иначе 3 градуса превращаются в 8 см сдвига.
+	const FQuat Kick = FRotator(FMath::RadiansToDegrees(Recoil.Pitch - Recoil.PitchRest) * RS.VisualPitchScale, 0.0f, 0.0f).Quaternion();
+	const FVector HipLoc = ViewOffset - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f);
+	const FQuat HipRot = ViewRotation.Quaternion();
+	const FVector Loc = FMath::Lerp(HipLoc, AimLoc - FVector(Recoil.VisualKick_cm, 0.0f, 0.0f), A);
+	const FQuat Rot = FQuat::Slerp(HipRot, AimRot, A).GetNormalized();
+	SetActorRelativeLocation(Kick.RotateVector(Loc));
+	SetActorRelativeRotation((Kick * Rot).Rotator());
 }
 
 void APBLWeapon::SetAiming(bool bInAiming)
@@ -641,3 +677,19 @@ void APBLWeapon::OnRep_AmmoInMag()
 {
 	// HUD читает AmmoInMag напрямую каждый кадр - здесь пока ничего.
 }
+
+// Диагностика позы прицеливания: где дуло в системе актора и куда встаёт оружие.
+static FAutoConsoleCommandWithWorld CmdAimPose(TEXT("pbl.Weapon.AimPose"),
+	TEXT("Print the computed aiming pose"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		APBLCharacter* C = World ? Cast<APBLCharacter>(World->GetFirstPlayerController() ? World->GetFirstPlayerController()->GetPawn() : nullptr) : nullptr;
+		APBLWeapon* W = C ? C->GetWeapon() : nullptr;
+		if (!W) { return; }
+		FVector L; FQuat R;
+		W->DebugAimPose(L, R);
+		UE_LOG(LogTemp, Display, TEXT("AIMPOSE loc %s | rot %s | muzzle(actor) %s | muzzle(world) %s | actor %s"),
+			*L.ToCompactString(), *R.Rotator().ToCompactString(),
+			*W->GetRootComponent()->GetComponentTransform().InverseTransformPosition(W->GetMuzzleLocation()).ToCompactString(),
+			*W->GetMuzzleLocation().ToCompactString(), *W->GetActorLocation().ToCompactString());
+	}));

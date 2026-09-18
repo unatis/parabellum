@@ -413,10 +413,13 @@ def main():
         uc = up.get_component_by_class(unreal.RectLightComponent)
         uc.set_mobility(unreal.ComponentMobility.MOVABLE)
         uc.set_editor_property("intensity_units", unreal.LightUnits.LUMENS)
-        uc.set_intensity(LAMP_LUMENS * 0.45)
-        uc.set_editor_property("source_width", width)
-        uc.set_editor_property("source_height", 18.0)
-        uc.set_attenuation_radius(700.0)
+        # Источник вверх делаем широким и мягким: маленькая лампа в полуметре от плиты рисует
+        # пятно, а широкая заливает перекрытие целиком - тогда виден бетон, а не чёрный провал.
+        uc.set_intensity(LAMP_LUMENS * 0.55)
+        uc.set_editor_property("source_width", width * 2.5)
+        uc.set_editor_property("source_height", 160.0)
+        uc.set_editor_property("barn_door_angle", 88.0)
+        uc.set_attenuation_radius(900.0)
         uc.set_editor_property("cast_shadows", False)
 
         panel = spawn(unreal.StaticMeshActor, (x, y, lamp_z + 4), (0, 0, 0), label + "_Panel", "Lighting")
