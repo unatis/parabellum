@@ -145,6 +145,8 @@ protected:
 	/** Выброс стреляной гильзы из окна выброса. Косметика: только у себя, серверу не уходит. */
 	void EjectCase();
 	UPROPERTY(Transient) TObjectPtr<class UStaticMesh> CaseMesh;
+	/** Текущий звук выстрела: новый выстрел его останавливает. */
+	TWeakObjectPtr<class UAudioComponent> FireAudio;
 	void PlayIdle();
 	FTimerHandle IdleTimer;
 	void SpawnImpact(const FVector& Location, const FVector& Normal, bool bHitCharacter);

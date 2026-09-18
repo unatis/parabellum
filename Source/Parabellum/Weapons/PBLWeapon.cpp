@@ -5,6 +5,7 @@
 #include "Components/DecalComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Player/PBLHUD.h"
@@ -630,7 +631,11 @@ void APBLWeapon::PlayLocalFireFX()
 	{
 		const float Vol = 1.0f + FMath::FRandRange(-FireSoundVolumeVariation, FireSoundVolumeVariation);
 		const float Pitch = 1.0f + FMath::FRandRange(-FireSoundPitchVariation, FireSoundPitchVariation);
-		UGameplayStatics::PlaySoundAtLocation(this, S, GetMuzzleLocation(), Vol, Pitch, 0.0f, FireAttenuation.LoadSynchronous());
+		// Каждый выстрел обрывает предыдущий: иначе хвосты наслаиваются и слышны как обрывки,
+		// доигрывающие после стрельбы. Поэтому звук идёт через компонент, а не разовым вызовом.
+		if (FireAudio.IsValid()) { FireAudio->Stop(); }
+		FireAudio = UGameplayStatics::SpawnSoundAtLocation(this, S, GetMuzzleLocation(), FRotator::ZeroRotator,
+			Vol, Pitch, 0.0f, FireAttenuation.LoadSynchronous());
 	}
 }
 
